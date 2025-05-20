@@ -2129,19 +2129,21 @@ function buildStatePaymentSection(stateName, p) {
     label = paymentTypeMap[p.type].label;
     formNumber = paymentTypeMap[p.type].form || '';
   } else {
-    // fallback
-    if (p.type === 'Extension') {
+    // fallback with keyword checks so custom labels like
+    // "Estimated Tax Payment (Form 540-ES)" are handled properly
+    const typeLower = (p.type || '').toLowerCase();
+    if (typeLower.includes('extension')) {
       label = 'Extension Payment';
       formNumber = isBiz ? stData.extensionFormBusiness : stData.extensionFormIndividual;
-    } else if (p.type === 'Estimated') {
+    } else if (typeLower.includes('estimated')) {
       label = 'Estimated Tax Payment';
       formNumber = isBiz ? stData.estimateFormBusiness : stData.estimateFormIndividual;
-    } else if (p.type === 'Tax Return Payment') {
+    } else if (typeLower.includes('tax return')) {
       label = 'Tax Return Payment';
       formNumber = 'Form 540 (Balance Due)';
-    } else if (p.type === 'Balance Due') {
+    } else if (typeLower.includes('balance')) {
       label = 'Balance Due Payment';
-    } else if (p.type === 'PTE' || p.type === 'pte') {
+    } else if (typeLower.includes('pte')) {
       label = 'Pass-Through Entity Payment';
       formNumber = stData.pteForm || '[PTE Form]';
     } else {
