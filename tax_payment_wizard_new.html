@@ -1,0 +1,2405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tax Payment Wizard (Merged Version)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px auto;
+      max-width: 100%;
+      padding: 0 10px;
+      background: #f5f5f5;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+      gap: 40px;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 24px;
+      min-height: calc(100vh - 48px);
+      position: relative;
+    }
+    /* Visual divider */
+    .container::after {
+      content: '';
+      position: absolute;
+      right: calc(33.33% + 20px);
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: linear-gradient(to bottom,
+        transparent 0%,
+        #ddd 5%,
+        #ddd 95%,
+        transparent 100%
+      );
+    }
+    /* Main content area */
+    main.wizard-container {
+      min-width: 0;
+      padding: 24px;
+      position: relative;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    /* Sidebar preview */
+    aside.preview-container {
+      min-width: 0;
+      padding: 32px;
+      background: #ffffff;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      position: sticky;
+      top: 24px;
+      height: fit-content;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+    }
+    /* Step progress indicator */
+    .step-progress {
+      display: flex;
+      margin: 0 0 32px;
+      padding: 0;
+      list-style: none;
+      counter-reset: step;
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .step-progress li {
+      flex: 1;
+      position: relative;
+      text-align: center;
+      counter-increment: step;
+      color: #94a3b8;
+      font-size: 0.9em;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+    .step-progress li.completed {
+      color: #10b981;
+    }
+    .step-progress li.active {
+      color: #3b82f6;
+      font-weight: 600;
+    }
+    .step-progress li:before {
+      content: counter(step);
+      width: 32px;
+      height: 32px;
+      line-height: 32px;
+      border: 2px solid #e2e8f0;
+      border-radius: 50%;
+      display: block;
+      margin: 0 auto 8px;
+      background: white;
+      position: relative;
+      transition: all 0.3s ease;
+      font-weight: 600;
+    }
+    .step-progress li.completed:before {
+      content: '✓';
+      background: #10b981;
+      border-color: #10b981;
+      color: white;
+    }
+    .step-progress li.active:before {
+      border-color: #3b82f6;
+      background: #3b82f6;
+      color: white;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
+    }
+    .step-progress li:after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      background: #e2e8f0;
+      top: 16px;
+      left: -50%;
+      z-index: -1;
+      transition: background-color 0.3s;
+    }
+    .step-progress li:first-child:after {
+      display: none;
+    }
+    .step-progress li.completed:after {
+      background: #10b981;
+    }
+    /* Wizard step visibility */
+    .wizard-step {
+      display: none;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .wizard-step.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    /* Review step */
+    #step-4 {
+      background: #fff;
+      border-radius: 8px;
+      padding: 24px;
+    }
+    #step-4 .review-section {
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    #step-4 .review-section:last-child {
+      border-bottom: none;
+    }
+    #step-4 h3 {
+      color: #1e293b;
+      font-size: 1.1em;
+      margin: 0 0 16px;
+    }
+    #step-4 .review-content {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    /* Buttons */
+    .button-group {
+      display: flex;
+      gap: 16px;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      line-height: 1.5;
+      transition: all 0.2s ease;
+      background: #3b82f6;
+      color: white;
+    }
+    button:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+    button[type="button"] {
+      background: #64748b;
+    }
+    button[type="button"]:hover {
+      background: #475569;
+    }
+    .primary-button {
+      background: #10b981;
+      font-size: 16px;
+      padding: 14px 28px;
+      font-weight: 600;
+    }
+    .primary-button:hover {
+      background: #059669;
+    }
+    /* Fieldset styling */
+    fieldset {
+      border: 1px solid #ddd;
+      padding: 24px;
+      margin-bottom: 24px;
+      border-radius: 8px;
+      background: white;
+    }
+    legend {
+      font-size: 1.2em;
+      font-weight: 600;
+      background: #007bff;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      position: relative;
+      transition: background-color 0.2s ease;
+    }
+    legend:hover {
+      background: #0056b3;
+    }
+    /* Form fields */
+    .form-field {
+      margin: 24px 0;
+      position: relative;
+    }
+    .form-field label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 600;
+      color: #333;
+    }
+    .form-field input[type="text"],
+    .form-field input[type="date"],
+    .form-field input[type="number"],
+    .form-field select,
+    .form-field textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .form-field input:focus,
+    .form-field select:focus,
+    .form-field textarea:focus {
+      border-color: #007bff;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    }
+    .form-field.error input,
+    .form-field.error select {
+      border-color: #dc3545;
+      background-color: #fff8f8;
+      box-shadow: 0 0 0 1px #dc3545;
+    }
+    .error-message {
+      color: #dc3545;
+      font-size: 0.875em;
+      margin-top: 4px;
+      display: none;
+      font-weight: 500;
+    }
+    .form-field.error .error-message {
+      display: block !important;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* Loading indicator */
+    .loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      display: none;
+    }
+    .loading.active {
+      display: flex;
+    }
+    .loading::after {
+      content: '';
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* Table improvements */
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      margin: 24px 0;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #ddd;
+      line-height: 1.5;
+      vertical-align: top;
+    }
+    .stacked-form-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stacked-form-cell label {
+      font-weight: 500;
+      color: #4a5568;
+      font-size: 0.9em;
+    }
+    .stacked-form-cell select,
+    .stacked-form-cell input,
+    .stacked-form-cell textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      font-size: 0.95em;
+    }
+    .stacked-form-cell .helper-text {
+      font-size: 0.8em;
+      color: #718096;
+      margin-top: 2px;
+    }
+    .table-container {
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 24px 0;
+      padding-bottom: 6px;
+    }
+    /* Preview area */
+    #previewHeader {
+      font-size: 1.2em;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #edf2f7;
+      position: relative;
+    }
+    #previewHeader::after {
+      content: 'Live Preview';
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75em;
+      color: #718096;
+      font-weight: 500;
+      background: #edf2f7;
+      padding: 4px 12px;
+      border-radius: 12px;
+    }
+    .email-preview-container {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .email-header {
+      background: #f1f5f9;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px;
+    }
+    .email-header-field {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 8px;
+      font-family: monospace;
+      color: #475569;
+    }
+    .email-header-field:last-child {
+      margin-bottom: 0;
+    }
+    .email-header-label {
+      flex: 0 0 80px;
+      color: #64748b;
+    }
+    .email-body {
+      padding: 24px;
+      background: white;
+      min-height: 200px;
+      line-height: 1.6;
+      color: #2d3748;
+    }
+    .customize-email {
+      margin-top: 16px;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+    .customize-email h3 {
+      font-size: 1em;
+      color: #475569;
+      margin: 0 0 12px;
+    }
+    .customize-field {
+      margin-bottom: 12px;
+    }
+    .customize-field label {
+      display: block;
+      font-size: 0.9em;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .customize-field input,
+    .customize-field textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      font-size: 0.95em;
+    }
+    .customize-field textarea {
+      height: 80px;
+      resize: vertical;
+    }
+    #previewArea span[style*="background-color: #FFFF00"] {
+      background-color: #fefcbf !important;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    #savePreviewChanges {
+      display: none;
+      margin-top: 16px;
+      background: #48bb78;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background-color 0.2s ease;
+    }
+    #savePreviewChanges:hover {
+      background: #38a169;
+    }
+    aside.preview-container::-webkit-scrollbar {
+      width: 8px;
+    }
+    aside.preview-container::-webkit-scrollbar-track {
+      background: #f7fafc;
+      border-radius: 8px;
+    }
+    aside.preview-container::-webkit-scrollbar-thumb {
+      background-color: #cbd5e0;
+      border-radius: 8px;
+      border: 2px solid #f7fafc;
+    }
+    aside.preview-container::-webkit-scrollbar-thumb:hover {
+      background-color: #a0aec0;
+    }
+    .preview-edit-notice {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #ebf8ff;
+      border: 1px solid #bee3f8;
+      border-radius: 6px;
+      font-size: 0.9em;
+      color: #2c5282;
+      line-height: 1.5;
+    }
+    .preview-edit-notice.visible {
+      display: block;
+    }
+    .toggle-switch {
+      display: flex;
+      align-items: center;
+      margin: 16px 0;
+      gap: 12px;
+    }
+    .toggle-switch input[type="checkbox"] {
+      height: 0;
+      width: 0;
+      visibility: hidden;
+    }
+    .toggle-switch label {
+      cursor: pointer;
+      width: 50px;
+      height: 24px;
+      background: #ccc;
+      display: block;
+      border-radius: 100px;
+      position: relative;
+      margin-right: 10px;
+    }
+    .toggle-switch label:after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 20px;
+      transition: 0.3s;
+    }
+    .toggle-switch input:checked + label {
+      background: #007bff;
+    }
+    .toggle-switch input:checked + label:after {
+      left: calc(100% - 2px);
+      transform: translateX(-100%);
+    }
+    .wizard-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+    .wizard-header h2 {
+      margin: 0;
+      color: #333;
+      font-size: 1.75em;
+    }
+    .state-info-box {
+      margin: 24px 0;
+      padding: 24px;
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      line-height: 1.6;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-line;
+    }
+    .state-info-box h3 {
+      margin-top: 0;
+      font-weight: 600;
+      color: #555;
+    }
+    .hidden {
+      display: none;
+    }
+    @media (max-width: 1200px) {
+      .container {
+        gap: 30px;
+      }
+      .container::after {
+        right: calc(33.33% + 15px);
+      }
+      main.wizard-container {
+        padding-right: 30px;
+      }
+    }
+    @media (max-width: 1000px) {
+      .container {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      .container::after {
+        display: none;
+      }
+      main.wizard-container {
+        padding-right: 0;
+      }
+      aside.preview-container {
+        position: static;
+        max-height: none;
+        margin-top: 40px;
+        border-top: 2px solid #eee;
+        padding-top: 40px;
+      }
+    }
+    fieldset, table {
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    .form-group {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      background: #f8fafc;
+    }
+    .form-group legend {
+      font-size: 1.1em;
+      font-weight: 600;
+      color: #1e293b;
+      background: none;
+      padding: 0 8px;
+      margin-bottom: 16px;
+      box-shadow: none;
+    }
+    .form-group:hover {
+      border-color: #cbd5e0;
+      background: #fff;
+      transition: all 0.2s ease;
+    }
+    .wizard-step > fieldset:not(:last-child) {
+      margin-bottom: 32px;
+    }
+    .form-group, .form-field input, .form-field select {
+      transition: all 0.2s ease;
+    }
+    .form-group:focus-within {
+      border-color: #3b82f6;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.1);
+    }
+    .add-payment-button {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    .add-payment-button:hover {
+      background: #059669;
+      transform: translateY(-1px);
+    }
+    .state-section {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 20px;
+      transition: all 0.2s ease;
+    }
+    .state-section:hover {
+      border-color: #cbd5e0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .state-section h3 {
+      color: #1e293b;
+      font-size: 1.1em;
+      margin: 0 0 16px;
+    }
+    .form-group table {
+      margin: 16px 0 0;
+      border: 1px solid #e2e8f0;
+    }
+    .form-group table th {
+      background: #f8fafc;
+      color: #1e293b;
+      font-weight: 600;
+      text-align: left;
+    }
+    #stateInfoBox.form-group {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      margin-top: 24px;
+    }
+    #stateInfoBox.form-group:not(.hidden) {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .helper-text {
+      font-size: 0.85em;
+      color: #64748b;
+      margin: -4px 0 8px;
+      font-style: italic;
+    }
+    .info-tooltip {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      background: #e2e8f0;
+      color: #475569;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 16px;
+      font-size: 12px;
+      margin-left: 6px;
+      cursor: help;
+    }
+    .info-tooltip:hover {
+      background: #cbd5e0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="loading" id="loadingIndicator" role="alert" aria-busy="true">
+  <span class="sr-only">Loading...</span>
+</div>
+
+<div class="container">
+  <main class="wizard-container" role="main">
+    <div class="wizard-header">
+      <h2>Tax Payment Wizard</h2>
+      <div>
+        <!-- Existing Reset Form button -->
+        <button
+          class="reset-button"
+          onclick="resetWizard()"
+          aria-label="Reset form to initial state"
+          title="Reset all form data"
+        >
+          Reset Form
+        </button>
+        <!-- NEW: Report a Bug button -->
+        <button
+          class="reset-button"
+          onclick="reportBug()"
+          aria-label="Report a bug"
+          title="Send a bug report via email"
+          style="margin-left:10px;"
+        >
+          Report a Bug
+        </button>
+      </div>
+    </div>
+
+    <!-- Step Progress Indicator -->
+    <nav aria-label="Wizard progress">
+      <ol class="step-progress">
+        <li class="active" aria-current="step">
+          <span class="sr-only">Current step: </span>Basic Info
+        </li>
+        <li>Federal Payments</li>
+        <li>State Payments</li>
+        <li>Review</li>
+      </ol>
+    </nav>
+
+    <!-- STEP 1: Basic Info -->
+    <fieldset class="wizard-step active" id="step-1" role="tabpanel">
+      <legend>Step 1: Basic Info</legend>
+      
+      <!-- Recipient & Sender Info -->
+      <fieldset class="form-group">
+        <legend>Recipient &amp; Sender Info</legend>
+        <div class="form-field">
+          <label for="addresseeName">Recipient: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">Enter the full name as it should appear in the email</div>
+          <input type="text"
+                 id="addresseeName"
+                 placeholder="e.g., John Smith"
+                 oninput="onFieldChange()"
+                 required
+                 aria-required="true"
+          />
+          <div class="error-message" role="alert"></div>
+        </div>
+
+        <div class="form-field">
+          <label for="senderName">Sender: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">Enter your name as it should appear in the email signature</div>
+          <input type="text"
+                 id="senderName"
+                 placeholder="e.g., Jane Doe"
+                 oninput="onFieldChange()"
+                 required
+                 aria-required="true"
+          />
+          <div class="error-message" role="alert"></div>
+        </div>
+      </fieldset>
+
+      <!-- Payment Timing -->
+      <fieldset class="form-group">
+        <legend>Payment Timing</legend>
+        <div class="form-field">
+          <label for="paymentDueDate">Pay-by date: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">Select a date in MM/DD/YYYY format (must be a future date)</div>
+          <input type="date" 
+                 id="paymentDueDate" 
+                 value="2025-04-15"
+                 onchange="onFieldChange()" 
+                 required
+                 aria-required="true"
+          />
+          <div class="error-message" role="alert"></div>
+
+          <div class="toggle-switch">
+            <input type="checkbox" 
+                   id="showDueDateReminder" 
+                   checked 
+                   onchange="onFieldChange()"
+                   aria-label="Show due date reminder in email"
+            />
+            <label for="showDueDateReminder"></label>
+            <span>Include due date reminder in email</span>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Entity Type Selection (Individual vs. Business) -->
+      <fieldset class="form-group">
+        <legend>Entity Type</legend>
+        <div class="form-field">
+          <label for="entityType">Select Entity Type: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">Choose whether this is for an individual or business entity</div>
+          <select id="entityType" onchange="onEntityTypeChange()" required>
+            <option value="individual">Individual</option>
+            <option value="business">Business Entity</option>
+          </select>
+          <div class="error-message" role="alert"></div>
+        </div>
+      </fieldset>
+
+      <!-- Business Information (shown only for business entities) -->
+      <fieldset id="businessFields" class="form-group hidden">
+        <legend>Business Information</legend>
+        <div class="form-field">
+          <label for="businessType">Business Type: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">Select the type of business entity</div>
+          <select id="businessType" onchange="onBusinessTypeChange()">
+            <option value="ccorp">C-Corporation</option>
+            <option value="scorp">S-Corporation</option>
+            <option value="partnership">Partnership</option>
+            <option value="llc">Limited Liability Company (LLC)</option>
+          </select>
+          <div class="error-message" role="alert"></div>
+        </div>
+        <div class="form-field hidden" id="caCorpFormField">
+          <label for="caCorpForm">California Corp Form: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">
+            Only required if you are a CA C-Corp or S-Corp. (Select Form 100, 100S, 100W, or 100X)
+          </div>
+          <select id="caCorpForm" onchange="onFieldChange()">
+            <option value="">-- Select --</option>
+            <option value="Form 100">Form 100</option>
+            <option value="Form 100S">Form 100S</option>
+            <option value="Form 100W">Form 100W</option>
+            <option value="Form 100X">Form 100X</option>
+          </select>
+          <div class="error-message" role="alert"></div>
+        </div>
+        <div class="form-field">
+          <label for="entityId">Entity ID: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">Enter your business entity identification number</div>
+          <input type="text" id="entityId" placeholder="e.g., 1234567" required>
+          <div class="error-message" role="alert"></div>
+        </div>
+        <div class="form-field">
+          <label for="entityName">Entity Name: <span aria-hidden="true">*</span></label>
+          <div class="helper-text">Enter the legal name of your business entity</div>
+          <input type="text" id="entityName" placeholder="e.g., ABC Corporation" required>
+          <div class="error-message" role="alert"></div>
+        </div>
+      </fieldset>
+
+      <div class="button-group">
+        <button onclick="goToStep(2)" aria-label="Proceed to Federal Payments">Next Step</button>
+      </div>
+    </fieldset>
+
+    <!-- STEP 2: Federal Payments -->
+    <fieldset class="wizard-step" id="step-2">
+      <legend>Step 2: Federal Payments</legend>
+
+      <fieldset class="form-group">
+        <legend>Federal Payment Details</legend>
+        <p>
+          Add one or more Federal payments
+          <span class="info-tooltip"
+                title="Extension (Form 4868 or 7004) to extend filing deadline; Estimated (Form 1040-ES or 1120-W); Balance Due for a filed return.">
+            ?
+          </span>
+        </p>
+        <div class="helper-text">
+          • Extension (4868) – One-time payment to extend filing deadline (individuals)<br>
+          • Estimated (1040-ES) – Quarterly tax payments<br>
+          • Balance Due – If you already filed a return and owe additional tax<br>
+        </div>
+        <button type="button" onclick="addFederalPayment()" class="add-payment-button">+ Add Federal Payment</button>
+        <div id="federalPaymentsContainer"></div>
+      </fieldset>
+
+      <div class="button-group">
+        <button onclick="goToStep(1)">Previous</button>
+        <button onclick="goToStep(3)">Next</button>
+      </div>
+    </fieldset>
+
+    <!-- STEP 3: State Payments -->
+    <fieldset class="wizard-step" id="step-3">
+      <legend>Step 3: State Payments</legend>
+      
+      <fieldset class="form-group">
+        <legend>Add State</legend>
+        <div class="form-field">
+          <label for="addStateSelector">
+            <strong>Select a State to Add</strong>
+            <span class="info-tooltip" 
+                  title="Each state has different payment requirements. Select a state to see its specific payment options.">
+              ?
+            </span>
+          </label>
+          <div class="helper-text">Choose a state to view its payment requirements and add payments</div>
+          <select id="addStateSelector" onchange="onAdditionalStateChange()">
+            <option value="">-- Select a state to add --</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-group">
+        <legend>
+          State Payment Details
+          <span class="info-tooltip" 
+                title="States may offer Extension, Estimated, Balance Due, or PTE (for businesses).">
+            ?
+          </span>
+        </legend>
+        <div class="helper-text">
+          • Extension: Extends your state filing deadline (not time to pay!)<br>
+          • Estimated: Quarterly state tax payments<br>
+          • Balance Due / Tax Return Payment: If you filed a return and owe tax<br>
+          • PTE: Pass-Through Entity tax (business only in certain states)
+        </div>
+        <div id="statesContainer">
+          <div id="statesList"></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-group hidden" id="stateInfoBox">
+        <legend id="stateInfoHeader"></legend>
+        <div id="stateInfoContent"></div>
+      </fieldset>
+
+      <div class="button-group">
+        <button onclick="goToStep(2)">Previous</button>
+        <button onclick="goToStep(4)">Next</button>
+      </div>
+    </fieldset>
+
+    <!-- STEP 4: Review & Confirm -->
+    <fieldset class="wizard-step" id="step-4">
+      <legend>Step 4: Review & Confirm</legend>
+      
+      <div class="review-section">
+        <h3>Basic Information</h3>
+        <div class="review-content">
+          <p><strong>Addressee:</strong> <span id="review-addressee"></span></p>
+          <p><strong>Due Date:</strong> <span id="review-duedate"></span></p>
+          <p><strong>Sender:</strong> <span id="review-sender"></span></p>
+        </div>
+      </div>
+
+      <div class="review-section">
+        <h3>Federal Payments</h3>
+        <div class="review-content" id="review-federal"></div>
+      </div>
+
+      <div class="review-section">
+        <h3>State Payments</h3>
+        <div class="review-content" id="review-states"></div>
+      </div>
+
+      <!-- NEW: Toggle for disclaimers -->
+      <fieldset class="form-group" style="margin-bottom: 0;">
+        <legend>Additional Options</legend>
+        <div class="form-field">
+          <div class="toggle-switch">
+            <input type="checkbox" 
+                   id="showDisclaimers" 
+                   checked 
+                   onchange="onDisclaimersChange()"
+                   aria-label="Toggle disclaimers in email"
+            />
+            <label for="showDisclaimers"></label>
+            <span>Include "Important Notes & References" disclaimers</span>
+          </div>
+        </div>
+      </fieldset>
+      <!-- / NEW: Toggle for disclaimers -->
+
+      <div class="review-section" style="margin-top:24px;">
+        <h3>Email Preview</h3>
+        <p>The preview on the right shows how your email will appear. If you need to make final adjustments:</p>
+        <button onclick="enablePreviewEditing()" class="secondary-button">Enable Final Edits</button>
+      </div>
+
+      <div class="button-group">
+        <button onclick="goToStep(3)" type="button">Previous</button>
+        <button id="downloadButton" onclick="downloadEmlFile()" class="primary-button">Open as Draft Email</button>
+      </div>
+    </fieldset>
+
+  </main>
+
+  <aside class="preview-container">
+    <div id="previewHeader">Email Preview</div>
+    <div id="previewArea" contenteditable="false"></div>
+    <button id="savePreviewChanges" onclick="savePreviewEdits()" style="display:none;margin-top:10px;">
+      Save Preview Changes
+    </button>
+  </aside>
+</div>
+
+<script>
+/******************************************************************************
+ * 1) MERGED STATE DATA (FULL) WITH EXTENSION, ESTIMATED, PTE FORMS, ETC.
+ *****************************************************************************/
+const mergedStatesData = {
+  "Alabama": {
+    extensionFormIndividual: "Form 4868",
+    extensionFormBusiness: "Form 7004",
+    estimateFormIndividual: "Form 40ES",
+    estimateFormBusiness: "Form 65 or 41",
+    pteForm: "Form AL-PTE",
+    paymentUrlIndividual: "https://myalabamataxes.alabama.gov",
+    paymentUrlBusiness: "https://myalabamataxes.alabama.gov",
+    taxAgencyName: "Alabama Department of Revenue (ALDOR)",
+    estimatedTaxText: "Yes – Individuals must pay quarterly estimates if liability is $500 or more",
+    extensionText: "Alabama automatically grants a 6-month extension",
+    pteText: "Yes – Alabama allows an elective PTE tax",
+    onlinePayProcess: "Payments are made through My Alabama Taxes (MAT)",
+    additionalComments: "Alabama personal income tax returns are due April 15"
+  },
+  "Alaska": {
+    extensionFormIndividual: "Form AK-EXT-I",
+    extensionFormBusiness: "Form AK-EXT-B",
+    estimateFormIndividual: "Form AK-ES-I",
+    estimateFormBusiness: "Form AK-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://tax.alaska.gov/programs/onlinepayment.aspx",
+    paymentUrlBusiness: "https://tax.alaska.gov/programs/onlinepayment.aspx",
+    taxAgencyName: "Alaska Department of Revenue",
+    estimatedTaxText: "No personal income tax in Alaska",
+    extensionText: "Not applicable for individuals (no personal income tax)",
+    pteText: "No – no personal income tax, so PTE is moot",
+    onlinePayProcess: "Use Alaska DOR's portal for corporate tax payments",
+    additionalComments: "Alaska repealed its individual income tax in 1980"
+  },
+  "Arizona": {
+    extensionFormIndividual: "Form AZ-EXT-I",
+    extensionFormBusiness: "Form AZ-EXT-B",
+    estimateFormIndividual: "Form AZ-ES-I",
+    estimateFormBusiness: "Form AZ-ES-B",
+    pteForm: "Form AZ-PTE",
+    paymentUrlIndividual: "https://aztaxes.gov/Home/PaymentIndividual",
+    paymentUrlBusiness: "https://aztaxes.gov/Home/PaymentBusiness",
+    taxAgencyName: "Arizona Department of Revenue (AZDOR)",
+    estimatedTaxText: "Yes – Must pay quarterly if expecting to owe $1,000+",
+    extensionText: "AZ generally follows federal extension",
+    pteText: "Yes – elective PTE tax began in 2022",
+    onlinePayProcess: "Use AZTaxes.gov for online payments",
+    additionalComments: "AZ returns due April 15"
+  },
+  "Arkansas": {
+    extensionFormIndividual: "Form AR-EXT-I",
+    extensionFormBusiness: "Form AR-EXT-B",
+    estimateFormIndividual: "Form AR-ES-I",
+    estimateFormBusiness: "Form AR-ES-B",
+    pteForm: "Form AR-PTE",
+    paymentUrlIndividual: "https://www.dfa.arkansas.gov/service/make-an-income-tax-payment",
+    paymentUrlBusiness: "https://www.dfa.arkansas.gov/service/make-a-business-tax-payment",
+    taxAgencyName: "Arkansas Department of Finance and Administration",
+    estimatedTaxText: "Yes – If you'll owe more than $1,000",
+    extensionText: "Automatic 6-month extension (until Oct 15)",
+    pteText: "Yes – elective PTE tax from 2022",
+    onlinePayProcess: "Use ATAP (Arkansas Taxpayer Access Point)",
+    additionalComments: "Arkansas personal returns due April 15"
+  },
+  "California": {
+    extensionFormIndividual: "Form 3519",
+    extensionFormBusiness: "FTB 3539",
+    estimateFormIndividual: "Form 540-ES",
+    estimateFormBusiness: "Form 100-ES",
+    pteForm: "Form 3893",
+    paymentUrlIndividual: "https://webapp.ftb.ca.gov/webpay/login/login?Submit=Use+Web+Pay+personal",
+    paymentUrlBusiness: "https://webapp.ftb.ca.gov/webpay/login/belogin?Submit=Use+Web+Pay+business",
+    taxAgencyName: "California Franchise Tax Board (FTB)",
+    estimatedTaxText: "Yes – CA requires estimated tax if you owe $500+",
+    extensionText: "CA automatically grants a 6-month extension",
+    pteText: "Yes – CA has an elective PTE tax (AB 150)",
+    onlinePayProcess: "Use FTB Web Pay on Franchise Tax Board website",
+    additionalComments: "California's PTE is a popular SALT workaround",
+
+    /* Payment Type Maps for business filers */
+    corpScorpPaymentTypes: {
+      estimatedPayment: {
+        label: "Estimated Tax Payment",
+        form: "100ES"
+      },
+      extensionPayment: {
+        label: "Extension Payment",
+        form: "3539"
+      },
+      originalReturnPayment: {
+        label: "Original Return Payment",
+        form: "100, 100S, 100W, or 3586"
+      },
+      billPayment: {
+        label: "Bill Payment"
+      },
+      sosPenalty: {
+        label: "Secretary of State (SOS) Certification Penalty Payment"
+      },
+      amendedReturn: {
+        label: "Amended Return Payment",
+        form: "100X"
+      },
+      npaPayment: {
+        label: "Notice of Proposed Assessment (NPA) Payment",
+        form: "NPA Payment"
+      },
+      pendingAudit: {
+        label: "Pending Audit Tax Deposit Payment",
+        form: "3577"
+      },
+      pte: {
+        label: "Pass-Through Entity Elective Tax",
+        form: "3893"
+      }
+    },
+    llcPaymentTypes: {
+      annualTax: {
+        label: "Annual Tax Payment",
+        form: "3522"
+      },
+      estimatedFee: {
+        label: "Estimated Fee Payment",
+        form: "3536"
+      },
+      extensionNcnr: {
+        label: "Extension / NCNR Member Payment",
+        form: "3537"
+      },
+      originalReturnNcnr: {
+        label: "Original Return / NCNR Member Payment",
+        form: "568 or 3588"
+      },
+      billPayment: {
+        label: "Bill Payment"
+      },
+      sosPenalty: {
+        label: "Secretary of State (SOS) Certification Penalty Payment"
+      },
+      amendedReturn: {
+        label: "Amended Return Payment",
+        form: "568"
+      },
+      npaPayment: {
+        label: "Notice of Proposed Assessment (NPA) Payment",
+        form: "NPA Payment (3578)"
+      },
+      pendingAudit: {
+        label: "Pending Audit Tax Deposit Payment",
+        form: "3578"
+      },
+      pte: {
+        label: "Pass-Through Entity Elective Tax",
+        form: "3893"
+      }
+    },
+    partnershipPaymentTypes: {
+      originalReturnPayment: {
+        label: "Original Return Payment",
+        form: "565 or 3587"
+      },
+      extensionPayment: {
+        label: "Extension Payment",
+        form: "3538"
+      },
+      billPayment: {
+        label: "Bill Payment"
+      },
+      amendedReturn: {
+        label: "Amended Return Payment",
+        form: "565"
+      },
+      npaPayment: {
+        label: "Notice of Proposed Assessment (NPA) Payment",
+        form: "NPA Payment (3579)"
+      },
+      pendingAudit: {
+        label: "Pending Audit Tax Deposit Payment",
+        form: "3579"
+      },
+      pte: {
+        label: "Pass-Through Entity Elective Tax",
+        form: "3893"
+      }
+    }
+  },
+  "Colorado": {
+    extensionFormIndividual: "Form CO-EXT-I",
+    extensionFormBusiness: "Form CO-EXT-B",
+    estimateFormIndividual: "Form CO-ES-I",
+    estimateFormBusiness: "Form CO-ES-B",
+    pteForm: "Form CO-PTE",
+    paymentUrlIndividual: "https://revenueonline.colorado.gov",
+    paymentUrlBusiness: "https://revenueonline.colorado.gov",
+    taxAgencyName: "Colorado Department of Revenue",
+    estimatedTaxText: "Yes – Follows federal guidelines for estimated tax",
+    extensionText: "CO automatically allows 6-month extension",
+    pteText: "Yes – elective PTE from 2022",
+    onlinePayProcess: "Use Colorado's Revenue Online",
+    additionalComments: "CO income tax is flat (4.4%)"
+  },
+  /* ... plus all the other states ... (omitted here for brevity) ... */
+  "Wyoming": {
+    extensionFormIndividual: "Form WY-EXT-I",
+    extensionFormBusiness: "Form WY-EXT-B",
+    estimateFormIndividual: "Form WY-ES-I",
+    estimateFormBusiness: "Form WY-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://revenue.wyo.gov/online-services",
+    paymentUrlBusiness: "https://revenue.wyo.gov/online-services",
+    taxAgencyName: "Wyoming Department of Revenue",
+    estimatedTaxText: "No personal income tax",
+    extensionText: "No personal extension needed",
+    pteText: "No – no personal income tax",
+    onlinePayProcess: "Use WY DOR online services",
+    additionalComments: "No individual income tax"
+  }
+};
+
+/******************************************************************************
+ * 2) GLOBAL FORM DATA
+ *****************************************************************************/
+let formData = {
+  addresseeName: '',
+  paymentDueDate: '',
+  senderName: '',
+  showDueDateReminder: true,
+  federalPayments: [],
+  statePayments: [],
+  entityType: 'individual',
+  businessType: '',
+  entityId: '',
+  entityName: '',
+  caCorpForm: '',
+  // NEW: Toggles the disclaimers in the final email
+  showDisclaimers: true
+};
+
+let generatedEmailHTML = '';
+
+/******************************************************************************
+ * 3) WIZARD NAVIGATION & VALIDATION
+ *****************************************************************************/
+function validateField(field) {
+  const errorDiv = field.parentElement.querySelector('.error-message');
+  let isValid = true;
+  let errorMessage = '';
+
+  if (field.required && !field.value.trim()) {
+    isValid = false;
+    errorMessage = 'This field is required';
+  }
+
+  field.parentElement.classList.toggle('error', !isValid);
+  errorDiv.textContent = errorMessage;
+  return isValid;
+}
+
+function validateStep(stepNumber) {
+  const step = document.getElementById(`step-${stepNumber}`);
+  if (!step) return true;
+  
+  const fields = step.querySelectorAll('input[required], select[required]');
+  let isValid = true;
+
+  fields.forEach(field => {
+    // skip business-only fields if not a business
+    if (
+      field.closest('#businessFields') &&
+      document.getElementById('entityType').value !== 'business'
+    ) {
+      return;
+    }
+    if (!validateField(field)) {
+      isValid = false;
+    }
+  });
+  return isValid;
+}
+
+function goToStep(stepNumber) {
+  const currentStep = document.querySelector('.wizard-step.active');
+  if (currentStep) {
+    const currentStepNum = parseInt(currentStep.id.split('-')[1], 10);
+    if (stepNumber > currentStepNum && !validateStep(currentStepNum)) {
+      return;
+    }
+  }
+  onFieldChange(); // Update form data before changing steps
+
+  const steps = document.querySelectorAll('.step-progress li');
+  steps.forEach((li, i) => {
+    li.classList.remove('active', 'completed');
+    if (i + 1 < stepNumber) {
+      li.classList.add('completed');
+    } else if (i + 1 === stepNumber) {
+      li.classList.add('active');
+    }
+  });
+
+  document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(`step-${stepNumber}`);
+  if (target) target.classList.add('active');
+
+  regeneratePreviewHTML();
+  if (stepNumber === 4) {
+    updateReviewStep();
+  }
+}
+
+function resetWizard() {
+  if (!confirm('Are you sure you want to reset the form?')) return;
+  localStorage.removeItem('taxWizardData');
+  localStorage.removeItem('taxWizardStep');
+
+  Object.assign(formData, getInitialFormData());
+  document.getElementById('addresseeName').value = '';
+  document.getElementById('senderName').value = '';
+  const currentYear = new Date().getFullYear();
+  document.getElementById('paymentDueDate').value = `${currentYear}-04-15`;
+  document.getElementById('showDueDateReminder').checked = true;
+  document.getElementById('statesList').innerHTML = '';
+  document.getElementById('federalPaymentsContainer').innerHTML = '';
+  document.getElementById('stateInfoBox').classList.add('hidden');
+
+  const steps = document.querySelectorAll('.step-progress li');
+  steps.forEach((step, index) => {
+    step.classList.remove('active', 'completed');
+    if (index === 0) step.classList.add('active');
+  });
+
+  document.querySelectorAll('.wizard-step').forEach(step => step.classList.remove('active'));
+  document.getElementById('step-1').classList.add('active');
+
+  const previewArea = document.getElementById('previewArea');
+  previewArea.setAttribute('contenteditable', 'false');
+  previewArea.innerHTML = '';
+  previewArea.style.background = 'white';
+  previewArea.style.borderColor = '#ddd';
+
+  regeneratePreviewHTML();
+
+  const loadingIndicator = document.getElementById('loadingIndicator');
+  loadingIndicator.classList.add('active');
+  setTimeout(() => loadingIndicator.classList.remove('active'), 500);
+}
+
+/******************************************************************************
+ * 4) FORM DATA & RENDERING
+ *****************************************************************************/
+function onFieldChange() {
+  // Update basic fields
+  formData.addresseeName = (document.getElementById('addresseeName')?.value || '').trim();
+  formData.senderName = (document.getElementById('senderName')?.value || '').trim();
+  formData.showDueDateReminder = document.getElementById('showDueDateReminder')?.checked ?? true;
+
+  const rawDate = document.getElementById('paymentDueDate')?.value;
+  if (rawDate) {
+    formData.paymentDueDate = formatDateToMMDDYYYY(rawDate);
+  }
+
+  // Update entity type
+  const entityType = document.getElementById('entityType')?.value;
+  formData.entityType = entityType;
+
+  if (entityType === 'business') {
+    formData.businessType = document.getElementById('businessType')?.value || '';
+    formData.entityId = (document.getElementById('entityId')?.value || '').trim();
+    formData.entityName = (document.getElementById('entityName')?.value || '').trim();
+    formData.caCorpForm = document.getElementById('caCorpForm')?.value || '';
+  } else {
+    // clear out business data if user toggles back to individual
+    formData.businessType = '';
+    formData.entityName = '';
+    formData.entityId = '';
+    formData.caCorpForm = '';
+  }
+
+  // Save current form data to local storage
+  localStorage.setItem('taxWizardData', JSON.stringify(formData));
+
+  regeneratePreviewHTML();
+}
+
+function onDisclaimersChange() {
+  formData.showDisclaimers = document.getElementById('showDisclaimers').checked;
+  regeneratePreviewHTML();
+}
+
+// Helper for initial data
+function getInitialFormData() {
+  const y = new Date().getFullYear();
+  return {
+    addresseeName: '',
+    paymentDueDate: `${y}-04-15`,
+    senderName: '',
+    showDueDateReminder: true,
+    federalPayments: [],
+    statePayments: [],
+    entityType: 'individual',
+    businessType: '',
+    entityId: '',
+    entityName: '',
+    caCorpForm: '',
+    showDisclaimers: true
+  };
+}
+
+// Helper for date formatting
+function formatDateToMMDDYYYY(iso) {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length < 3) return iso;
+  return `${parts[1]}-${parts[2]}-${parts[0]}`;
+}
+
+/******************************************************************************
+ * 5) FEDERAL PAYMENTS
+ *****************************************************************************/
+function addFederalPayment() {
+  formData.federalPayments.push({
+    type: 'Extension',
+    quarter: '',
+    dueDate: '',
+    amount: '',
+    description: '',
+    taxPeriod: '2024'
+  });
+  renderFederalPayments();
+  regeneratePreviewHTML();
+}
+
+function updateFederalPayment(idx, field, val, skipRender=false) {
+  const fp = formData.federalPayments[idx];
+
+  if (field === 'type') {
+    if (val === 'Extension') {
+      fp.quarter = '';
+      fp.taxPeriod = '2024';
+    } else if (val === 'Balance Due') {
+      fp.quarter = '';
+      fp.taxPeriod = '2024';
+    } else {
+      fp.taxPeriod = '2025';
+    }
+  }
+  if (field === 'dueDate') {
+    fp.dueDate = formatDateToMMDDYYYY(val);
+  } else {
+    fp[field] = val;
+  }
+  if (!skipRender) renderFederalPayments();
+  regeneratePreviewHTML();
+}
+
+function removeFederalPayment(idx) {
+  formData.federalPayments.splice(idx, 1);
+  renderFederalPayments();
+  regeneratePreviewHTML();
+}
+
+function renderFederalPayments() {
+  const container = document.getElementById('federalPaymentsContainer');
+  container.innerHTML = '';
+  if (!formData.federalPayments.length) return;
+
+  let html = `<div class="table-container"><table>
+    <tr>
+      <th>Type & Quarter</th>
+      <th>Due Date & Amount</th>
+      <th>Tax Period & Notes</th>
+      <th></th>
+    </tr>`;
+  formData.federalPayments.forEach((p, idx) => {
+    html += `<tr>
+      <td>
+        <div class="stacked-form-cell">
+          <label>Payment Type</label>
+          <select onchange="updateFederalPayment(${idx}, 'type', this.value)"
+                  title="Extension, Estimated, or Balance Due">
+            <option value="Extension" ${p.type==='Extension' ? 'selected' : ''}>Extension</option>
+            <option value="Estimated" ${p.type==='Estimated' ? 'selected' : ''}>Estimated</option>
+            <option value="Balance Due" ${p.type==='Balance Due' ? 'selected' : ''}>Balance Due</option>
+          </select>
+          <div class="helper-text">Choose payment type</div>
+        </div>
+        <div class="stacked-form-cell" style="margin-top: 12px;">
+          <label>Quarter</label>
+          <!-- condition below allows quarter only if p.type includes 'estimated' -->
+          <select onchange="updateFederalPayment(${idx}, 'quarter', this.value)"
+                  ${p.type && p.type.toLowerCase().includes('estimated') ? '' : 'disabled'}>
+            <option value="">--</option>
+            <option value="Q1" ${p.quarter==='Q1'?'selected':''}>Q1</option>
+            <option value="Q2" ${p.quarter==='Q2'?'selected':''}>Q2</option>
+            <option value="Q3" ${p.quarter==='Q3'?'selected':''}>Q3</option>
+            <option value="Q4" ${p.quarter==='Q4'?'selected':''}>Q4</option>
+          </select>
+          <div class="helper-text">For estimated tax only</div>
+        </div>
+      </td>
+      <td>
+        <div class="stacked-form-cell">
+          <label>Due Date</label>
+          <input type="date"
+                 value="${reverseFormatDateToYYYYMMDD(p.dueDate)}"
+                 onchange="updateFederalPayment(${idx}, 'dueDate', this.value)"
+                 placeholder="MM/DD/YYYY" />
+          <div class="helper-text">Deadline</div>
+        </div>
+        <div class="stacked-form-cell" style="margin-top: 12px;">
+          <label>Amount</label>
+          <input type="number"
+                 value="${p.amount}"
+                 placeholder="e.g. 1000"
+                 oninput="updateFederalPayment(${idx}, 'amount', this.value, true)" />
+          <div class="helper-text">Whole dollars</div>
+        </div>
+      </td>
+      <td>
+        <div class="stacked-form-cell">
+          <label>Tax Period</label>
+          <input type="number"
+                 min="2000"
+                 max="2100"
+                 value="${p.taxPeriod || ''}"
+                 oninput="updateFederalPayment(${idx}, 'taxPeriod', this.value, true)" />
+          <div class="helper-text">e.g. 2024</div>
+        </div>
+        <div class="stacked-form-cell" style="margin-top: 12px;">
+          <label>Notes</label>
+          <textarea rows="3"
+                    placeholder="Optional notes"
+                    oninput="updateFederalPayment(${idx}, 'description', this.value, true)">${p.description||''}</textarea>
+          <div class="helper-text">Add details</div>
+        </div>
+      </td>
+      <td>
+        <button type="button" onclick="removeFederalPayment(${idx})" style="margin-top:24px;">
+          Remove
+        </button>
+      </td>
+    </tr>`;
+  });
+  html += '</table></div>';
+  container.innerHTML = html;
+}
+
+function reverseFormatDateToYYYYMMDD(mdy) {
+  if (!mdy || !mdy.includes('-')) return '';
+  const parts = mdy.split('-');
+  if (parts.length < 3) return '';
+  return `${parts[2]}-${parts[0]}-${parts[1]}`;
+}
+
+/******************************************************************************
+ * 6) STATE PAYMENTS
+ *****************************************************************************/
+function onAdditionalStateChange() {
+  const sel = document.getElementById('addStateSelector');
+  const val = sel.value;
+  if (!val) return;
+
+  if (!formData.statePayments.find(s => s.stateName === val)) {
+    formData.statePayments.push({
+      stateName: val,
+      payments: []
+    });
+    renderStatesList();
+  }
+  displayStateInfo(val);
+  sel.value = '';
+  regeneratePreviewHTML();
+}
+
+function renderStatesList() {
+  const listDiv = document.getElementById('statesList');
+  listDiv.innerHTML = '';
+  formData.statePayments.forEach((st, idx) => {
+    const container = document.createElement('div');
+    container.className = 'state-section';
+
+    // Conditionally show "Add PTE Payment" if business + pteForm != 'N/A'
+    const showPTE =
+      formData.entityType === 'business' &&
+      (mergedStatesData[st.stateName]?.pteForm || "N/A") !== "N/A";
+
+    let html =
+      `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+        <h3 style="margin:0;">${st.stateName}</h3>
+        <button type="button" onclick="removeState(${idx})" style="background:#dc3545;color:white">
+          Remove State
+        </button>
+      </div>
+      <button type="button" onclick="addPaymentToState(${idx})" class="add-payment-button">
+        + Add Payment
+      </button>`;
+
+    if (showPTE) {
+      html += `
+      <button type="button" onclick="addPTEPayment(${idx})"
+              class="add-payment-button" 
+              style="background:#a855f7;margin-left:8px;">
+        + Add PTE Payment
+      </button>`;
+    }
+    html += `<div id="statePayments-${idx}" style="margin-top:10px;"></div>`;
+    container.innerHTML = html;
+    listDiv.appendChild(container);
+
+    renderStatePayments(idx);
+  });
+}
+
+function removeState(idx) {
+  formData.statePayments.splice(idx, 1);
+  renderStatesList();
+  regeneratePreviewHTML();
+}
+
+function addPaymentToState(stateIdx) {
+  const stateObj = formData.statePayments[stateIdx];
+  const { stateName } = stateObj;
+
+  // default to "Extension"
+  let defaultType = 'Extension';
+  if (stateName === 'California' && formData.entityType === 'business') {
+    defaultType = 'originalReturnPayment';
+  }
+
+  stateObj.payments.push({
+    type: defaultType,
+    quarter: '',
+    dueDate: '',
+    amount: '',
+    description: '',
+    taxPeriod: new Date().getFullYear()
+  });
+  renderStatePayments(stateIdx);
+  regeneratePreviewHTML();
+}
+
+function addPTEPayment(stateIdx) {
+  const stateObj = formData.statePayments[stateIdx];
+  const { stateName } = stateObj;
+
+  let pteType = 'PTE';
+  if (stateName === 'California' && formData.entityType === 'business') {
+    pteType = 'pte'; 
+  }
+  stateObj.payments.push({
+    type: pteType,
+    dueDate: '',
+    amount: '',
+    description: '',
+    taxPeriod: new Date().getFullYear()
+  });
+  renderStatePayments(stateIdx);
+  regeneratePreviewHTML();
+}
+
+function removeStatePayment(stateIdx, pmtIdx) {
+  formData.statePayments[stateIdx].payments.splice(pmtIdx, 1);
+  renderStatesList();
+  regeneratePreviewHTML();
+}
+
+/**
+ * This is where we add the substring checks for 'extension', 'estimated', 'balance', etc.
+ * so that "Estimated Tax Payment (Form 540-ES)" triggers a default taxPeriod or other logic.
+ */
+function updateStatePayment(stateIdx, pmtIdx, field, value, shouldReRender = true) {
+  const st = formData.statePayments[stateIdx];
+  const payment = st.payments[pmtIdx];
+
+  // 1) If the user changed the "type" field, run substring checks:
+  if (field === 'type') {
+    const lower = value.toLowerCase();
+    if (lower.includes('extension')) {
+      // Example: user picks "Extension Payment (Form 3519)" => set defaults
+      payment.quarter = '';
+      payment.taxPeriod = '2024';
+    } else if (lower.includes('estimated')) {
+      // Example: user picks "Estimated Tax Payment (Form 540-ES)"
+      payment.taxPeriod = '2025';
+      // set quarter if you like, or do nothing
+    } else if (lower.includes('balance')) {
+      // If you need special logic for "balance" types
+      payment.quarter = '';
+      payment.taxPeriod = '2024';
+    }
+    // else do nothing for other custom labels
+  }
+
+  // 2) Now set the field value (like dueDate or quarter, etc.)
+  if (field === 'dueDate') {
+    payment[field] = formatDateToMMDDYYYY(value);
+  } else {
+    payment[field] = value;
+  }
+
+  if (shouldReRender) {
+    renderStatePayments(stateIdx);
+  }
+  regeneratePreviewHTML();
+}
+
+function renderStatePayments(stateIdx) {
+  const container = document.getElementById(`statePayments-${stateIdx}`);
+  if (!container) return;
+  
+  const st = formData.statePayments[stateIdx];
+  if (!st) return;
+
+  const stateName = st.stateName;
+  const isCA = (stateName === 'California');
+  const isBiz = (formData.entityType === 'business');
+
+  let paymentTypeMap = null;
+  if (isCA && isBiz) {
+    switch (formData.businessType) {
+      case 'ccorp':
+      case 'scorp':
+        paymentTypeMap = mergedStatesData["California"].corpScorpPaymentTypes;
+        break;
+      case 'llc':
+        paymentTypeMap = mergedStatesData["California"].llcPaymentTypes;
+        break;
+      case 'partnership':
+        paymentTypeMap = mergedStatesData["California"].partnershipPaymentTypes;
+        break;
+      default:
+        paymentTypeMap = null;
+    }
+  }
+
+  let html = `<div class="table-container">
+    <table>
+      <tr>
+        <th>Payment Type & Quarter</th>
+        <th>Due Date & Amount</th>
+        <th>Tax Year & Notes</th>
+        <th></th>
+      </tr>`;
+
+  st.payments.forEach((p, pmtIdx) => {
+    let selectOptions = '';
+
+    if (paymentTypeMap) {
+      Object.keys(paymentTypeMap).forEach(k => {
+        const lbl = paymentTypeMap[k].label;
+        const selected = (p.type === k) ? 'selected' : '';
+        selectOptions += `<option value="${k}" ${selected}>${lbl}</option>`;
+      });
+    } else {
+      if (stateName === 'California' && !isBiz) {
+        const simpleTypes = [
+          "Estimated Tax Payment (Form 540-ES)",
+          "Bill Payment",
+          "Tax Return Payment",
+          "Amended Tax Return Payment",
+          "Extension Payment (Form 3519)",
+          "Notice of Proposed Assessment or Form 3834 Payment",
+          "Pending Audit Tax Deposit Payment (Form 3576)"
+        ];
+        simpleTypes.forEach(t => {
+          const sel = (p.type === t) ? 'selected' : '';
+          selectOptions += `<option value="${t}" ${sel}>${t}</option>`;
+        });
+      }
+      else {
+        const simpleTypes = ["Extension", "Estimated", "Balance Due", "PTE"];
+        simpleTypes.forEach(t => {
+          const sel = (p.type === t) ? 'selected' : '';
+          selectOptions += `<option value="${t}" ${sel}>${t}</option>`;
+        });
+      }
+    }
+
+    // If "estimated" is in p.type, enable quarter
+    const quarterEnabled = p.type && p.type.toLowerCase().includes('estimated');
+
+    html += `<tr>
+      <td>
+        <div class="stacked-form-cell">
+          <label>Payment Type</label>
+          <select onchange="updateStatePayment(${stateIdx}, ${pmtIdx}, 'type', this.value)"
+                  title="Select the payment type">
+            ${selectOptions}
+          </select>
+          <div class="helper-text">Select payment type</div>
+        </div>
+        <div class="stacked-form-cell" style="margin-top: 12px;">
+          <label>Quarter</label>
+          <select onchange="updateStatePayment(${stateIdx}, ${pmtIdx}, 'quarter', this.value)"
+                  ${quarterEnabled ? '' : 'disabled'}>
+            <option value="">--</option>
+            <option value="Q1" ${p.quarter==='Q1'?'selected':''}>Q1</option>
+            <option value="Q2" ${p.quarter==='Q2'?'selected':''}>Q2</option>
+            <option value="Q3" ${p.quarter==='Q3'?'selected':''}>Q3</option>
+            <option value="Q4" ${p.quarter==='Q4'?'selected':''}>Q4</option>
+          </select>
+          <div class="helper-text">For Estimated-type payments</div>
+        </div>
+      </td>
+      <td>
+        <div class="stacked-form-cell">
+          <label>Due Date</label>
+          <input type="date"
+                 value="${reverseFormatDateToYYYYMMDD(p.dueDate)}"
+                 oninput="updateStatePayment(${stateIdx}, ${pmtIdx}, 'dueDate', this.value, false)" />
+          <div class="helper-text">State's deadline</div>
+        </div>
+        <div class="stacked-form-cell" style="margin-top: 12px;">
+          <label>Amount</label>
+          <input type="number"
+                 value="${p.amount}"
+                 placeholder="e.g. 1000"
+                 oninput="updateStatePayment(${stateIdx}, ${pmtIdx}, 'amount', this.value, false)" />
+          <div class="helper-text">Whole dollars only</div>
+        </div>
+      </td>
+      <td>
+        <div class="stacked-form-cell">
+          <label>Tax Year</label>
+          <input type="number" min="2000" max="2100" value="${p.taxPeriod || ''}"
+                 oninput="updateStatePayment(${stateIdx}, ${pmtIdx}, 'taxPeriod', this.value, false)" />
+          <div class="helper-text">E.g., 2024</div>
+        </div>
+        <div class="stacked-form-cell" style="margin-top: 12px;">
+          <label>Notes</label>
+          <textarea rows="3"
+                    placeholder="Optional notes"
+                    oninput="updateStatePayment(${stateIdx}, ${pmtIdx}, 'description', this.value, false)">${p.description||''}</textarea>
+          <div class="helper-text">Additional details if needed</div>
+        </div>
+      </td>
+      <td>
+        <button type="button" onclick="removeStatePayment(${stateIdx}, ${pmtIdx})" style="margin-top:24px;">
+          Remove
+        </button>
+      </td>
+    </tr>`;
+  });
+
+  html += `</table></div>`;
+  container.innerHTML = html;
+}
+
+function displayStateInfo(stateName) {
+  const box = document.getElementById('stateInfoBox');
+  if (!mergedStatesData[stateName]) {
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  document.getElementById('stateInfoHeader').textContent = `${stateName} - Overview`;
+
+  const data = mergedStatesData[stateName];
+  let infoHtml = `
+**Tax Agency Name**: ${data.taxAgencyName || ''}
+**Estimated Tax Payments**: ${data.estimatedTaxText || ''}
+**Extension Payment Info**: ${data.extensionText || ''}
+**Pass-Through Entity (PTE) Elective Tax**: ${data.pteText || ''}
+**Online Payment Process**: ${data.onlinePayProcess || ''}
+**Additional Comments**: ${data.additionalComments || ''}`;
+
+  const safeHtml = infoHtml
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br/>');
+
+  document.getElementById('stateInfoContent').innerHTML = safeHtml;
+}
+
+/******************************************************************************
+ * 7) PREVIEW & DOWNLOAD (.eml)
+ *****************************************************************************/
+function regeneratePreviewHTML() {
+  const previewArea = document.getElementById('previewArea');
+  if (!previewArea) return;
+
+  generatedEmailHTML = buildEmailHTML();
+
+  if (previewArea.getAttribute('contenteditable') === 'false') {
+    previewArea.innerHTML = generatedEmailHTML;
+  }
+  localStorage.setItem('taxWizardData', JSON.stringify(formData));
+}
+
+function getDisplayedBusinessType(bizType) {
+  switch(bizType) {
+    case 'ccorp': return 'C-Corporation';
+    case 'scorp': return 'S-Corporation';
+    case 'partnership': return 'Partnership';
+    case 'llc': return 'Limited Liability Company (LLC)';
+    default: return bizType || '[Entity Type]';
+  }
+}
+
+function buildEmailHTML() {
+  const dateStr = formData.paymentDueDate 
+    ? new Date(formData.paymentDueDate.replace(/-/g,'/')).toLocaleDateString('en-US',{
+        month:'long', day:'numeric', year:'numeric'
+      })
+    : '';
+  const greeting = document.getElementById('customGreeting')?.value || `Hi ${formData.addresseeName || ''},`;
+  const personalNote = document.getElementById('personalNote')?.value || '';
+
+  let html = `
+<div class="email-header">
+  <div class="email-header-field">
+    <span class="email-header-label">From:</span>
+    <span>${formData.senderName || '(Not set)'}</span>
+  </div>
+  <div class="email-header-field">
+    <span class="email-header-label">To:</span>
+    <span>${formData.addresseeName || '(Not set)'}</span>
+  </div>
+  <div class="email-header-field">
+    <span class="email-header-label">Subject:</span>
+    <span>Tax Payment Instructions - Due ${dateStr || '[Date]'}</span>
+  </div>
+</div>
+<div class="email-body">
+  ${greeting}<br><br>
+  Here are the electronic payment instructions.<br>`;
+
+  if (formData.showDueDateReminder && dateStr) {
+    html += `Please be sure to pay by ${dateStr}.<br><br>`;
+  } else {
+    html += `<br>`;
+  }
+
+  // Federal
+  if (formData.federalPayments.length) {
+    formData.federalPayments.forEach(p => {
+      html += buildFederalPaymentSection(p);
+    });
+  }
+
+  // State
+  if (formData.statePayments.length) {
+    formData.statePayments.forEach(st => {
+      st.payments.forEach(p => {
+        html += buildStatePaymentSection(st.stateName, p);
+      });
+    });
+  }
+
+  if (personalNote) {
+    html += `<br>${personalNote}<br>`;
+  }
+
+  // Conditionally insert disclaimers
+  if (formData.showDisclaimers) {
+    html += `
+<br><strong>Important Notes & References:</strong>
+<ul style="margin-top:8px;">
+  <li><strong>Extension is not an extension to pay.</strong> Unpaid taxes after the deadline may incur penalties & interest. (See <a href="https://www.irs.gov" target="_blank">IRS.gov</a> and <a href="https://www.ftb.ca.gov" target="_blank">FTB.ca.gov</a>)</li>
+  <li><strong>Choose correct tax year/form:</strong> e.g., if extending 2024 taxes in April 2025, select 2024 for “Extension.”</li>
+  <li><strong>Payment confirmation:</strong> Always save the confirmation number or email from the IRS or FTB.</li>
+  <li>For complete step-by-step instructions, see the official references at <a href="https://www.irs.gov/payments/direct-pay" target="_blank">IRS Direct Pay</a> and <a href="https://webapp.ftb.ca.gov/webpay" target="_blank">CA FTB Web Pay</a>.</li>
+</ul>
+`;
+  }
+
+  html += `
+<br>
+Please confirm receipt and send payment confirmations once done. 
+Let me know if you have questions!<br><br>
+Thank you,<br>
+${formData.senderName || ''}
+</div>
+`;
+  return html;
+}
+
+function buildFederalPaymentSection(p) {
+  const dateStr = p.dueDate
+    ? new Date(p.dueDate.replace(/-/g,'/')).toLocaleDateString('en-US', {
+        month: 'long', day: 'numeric', year: 'numeric'
+      })
+    : '';
+  const taxYear = p.taxPeriod || '[Tax Year]';
+  const isBiz = (formData.entityType === 'business');
+
+  let extForm = isBiz ? '7004' : '4868';
+  let estForm = isBiz ? '1120-W' : '1040-ES';
+  let balLabel = isBiz ? 'Balance Due (1120)' : 'Balance Due (1040)';
+
+  let desc = '';
+  if (p.type === 'Extension') {
+    desc = `Extension Payment (Form ${extForm}) for tax year ${taxYear}.`;
+  } else if (p.type === 'Estimated') {
+    desc = `Estimated Tax Payment (Form ${estForm}) for tax year ${taxYear}`;
+    if (p.quarter) {
+      desc += ` (Quarter: ${p.quarter})`;
+    }
+    desc += '.';
+  } else if (p.type === 'Balance Due') {
+    desc = `${balLabel} for tax year ${taxYear}.`;
+  } else {
+    desc = `Federal Payment: ${p.type} for tax year ${taxYear}.`;
+  }
+
+  // Start building the HTML
+  let html = `
+<div style="margin-bottom:20px;padding:15px;background:#eef6ff;border-radius:8px;border:1px solid #e2e8f0;">
+  <div style="margin-bottom:12px;">${desc}</div>
+  <span style="background-color: #FFFF00; font-weight:bold; padding:4px 8px; border-radius:4px;">
+    Please pay ${formatCurrency(p.amount)} to the US Treasury
+  </span>
+  ${dateStr ? `<div style="margin-top:12px;"><strong>Due Date:</strong> ${dateStr}</div>` : ''}
+  ${p.description ? `<div style="margin-top:8px;"><strong>Additional Notes:</strong> ${p.description}</div>` : ''}
+`;
+
+  // Reinsert the IRS Direct Pay instructions (Business vs. Individual)
+  if (isBiz) {
+    const entityName = formData.entityName || '[Entity Name]';
+    const entityType = getDisplayedBusinessType(formData.businessType);
+    html += `
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+    <strong>IRS Direct Pay Instructions (Business):</strong><br/>
+    1. Go to <a href="https://www.irs.gov/payments/direct-pay" target="_blank">irs.gov/payments/direct-pay</a><br/>
+    2. Select the appropriate reason (Extension, Estimated, or Balance Due), then fill in:
+       <ul style="margin:6px 0 0 20px;">
+         <li>Entity Name: ${entityName}</li>
+         <li>Entity Type: ${entityType}</li>
+         <li>Tax Year: ${taxYear}</li>
+         <li>Amount: ${formatCurrency(p.amount)}</li>
+       </ul>
+    3. Follow the prompts to verify your identity and submit the payment.
+  </div>
+</div>
+`;
+  } else {
+    // For individuals, add the individual instructions
+    let paymentReasonTitle = '';
+    if (p.type === 'Extension') paymentReasonTitle = 'Extension (Form 4868)';
+    else if (p.type === 'Estimated') paymentReasonTitle = 'Estimated (Form 1040-ES)';
+    else if (p.type === 'Balance Due') paymentReasonTitle = 'Balance Due (Form 1040)';
+    
+    html += `
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+    <strong>IRS Direct Pay Instructions (Individual - ${paymentReasonTitle}):</strong><br/>
+    1. Go to <a href="https://www.irs.gov/payments/direct-pay" target="_blank">irs.gov/payments/direct-pay</a> and click "Pay Individual Tax".<br/>
+    2. Select "Make a payment"<br/>
+    3. Select:
+       <ul style="margin:6px 0 0 20px;">
+         <li>Reason for Payment: ${p.type}</li>
+         <li>Form: ${p.type === 'Extension' ? '4868' : p.type === 'Estimated' ? '1040-ES' : p.type === 'Balance Due' ? '1040' : ''}</li>
+         <li>Tax Year: ${taxYear}</li>
+         <li>Amount: ${formatCurrency(p.amount)}</li>
+       </ul>
+    4. Verify your identity (using a prior-year return), enter your bank information, review the details, and submit.
+  </div>
+</div>
+`;
+  }
+
+  return html;
+}
+
+function buildStatePaymentSection(stateName, p) {
+  const dateStr = p.dueDate
+    ? new Date(p.dueDate.replace(/-/g,'/')).toLocaleDateString('en-US',{
+        month:'long', day:'numeric', year:'numeric'
+      })
+    : '';
+  const stData = mergedStatesData[stateName];
+  if (!stData) {
+    return `<p style="color:red;">[Missing state data for ${stateName}]</p>`;
+  }
+  const taxYear = p.taxPeriod || '[Tax Year]';
+  const isBiz = (formData.entityType === 'business');
+  const entityId = formData.entityId || '[Entity ID]';
+  const entityName = formData.entityName || '[Entity Name]';
+  const entityType = getDisplayedBusinessType(formData.businessType);
+
+  let payUrl = isBiz ? stData.paymentUrlBusiness : stData.paymentUrlIndividual;
+  if (!payUrl) payUrl = `https://${stateName.toLowerCase()}.gov/tax`;
+
+  let paymentTypeMap = null;
+  if (stateName === 'California' && isBiz) {
+    switch (formData.businessType) {
+      case 'ccorp':
+      case 'scorp':
+        paymentTypeMap = stData.corpScorpPaymentTypes;
+        break;
+      case 'llc':
+        paymentTypeMap = stData.llcPaymentTypes;
+        break;
+      case 'partnership':
+        paymentTypeMap = stData.partnershipPaymentTypes;
+        break;
+      default:
+        paymentTypeMap = null;
+    }
+  }
+
+  let label = '';
+  let formNumber = '';
+  if (paymentTypeMap && paymentTypeMap[p.type]) {
+    label = paymentTypeMap[p.type].label;
+    formNumber = paymentTypeMap[p.type].form || '';
+  } else {
+    // fallback
+    if (p.type === 'Extension') {
+      label = 'Extension Payment';
+      formNumber = isBiz ? stData.extensionFormBusiness : stData.extensionFormIndividual;
+    } else if (p.type === 'Estimated') {
+      label = 'Estimated Tax Payment';
+      formNumber = isBiz ? stData.estimateFormBusiness : stData.estimateFormIndividual;
+    } else if (p.type === 'Tax Return Payment') {
+      label = 'Tax Return Payment';
+      formNumber = 'Form 540 (Balance Due)';
+    } else if (p.type === 'Balance Due') {
+      label = 'Balance Due Payment';
+    } else if (p.type === 'PTE' || p.type === 'pte') {
+      label = 'Pass-Through Entity Payment';
+      formNumber = stData.pteForm || '[PTE Form]';
+    } else {
+      label = p.type;
+    }
+  }
+
+  let desc = `${label}`;
+  if (formNumber) desc += ` (Form ${formNumber})`;
+  desc += ` for ${stateName}, tax year ${taxYear}`;
+  if (p.quarter) desc += ` (Quarter: ${p.quarter})`;
+  desc += '.';
+
+  // color for CA vs default
+  const isCA = (stateName === 'California');
+  const bgColor = isCA ? '#fef2f6' : '#f8fafc';
+
+  return `
+<div style="margin-bottom:20px;padding:15px;background:${bgColor};border-radius:8px;border:1px solid #e2e8f0;">
+  <div style="margin-bottom:12px;">${desc}</div>
+  <span style="background-color: #FFFF00; font-weight:bold; padding:4px 8px; border-radius:4px;">
+    Please pay ${formatCurrency(p.amount)} to ${stData.taxAgencyName || (stateName + ' Department of Revenue')}
+  </span>
+  ${
+    dateStr
+      ? `<div style="margin-top:12px;"><strong>Due Date:</strong> ${dateStr}</div>`
+      : ''
+  }
+  ${
+    p.description
+      ? `<div style="margin-top:8px;"><strong>Additional Notes:</strong> ${p.description}</div>`
+      : ''
+  }
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+    <strong>Payment Instructions:</strong><br/>
+    1. Go to <a href="${payUrl}" target="_blank">${payUrl}</a><br/>
+    2. Enter:
+      <ul style="margin:6px 0 0 20px;">
+        ${
+          isBiz
+            ? `
+        <li>Entity Name: ${entityName}</li>
+        <li>Entity Type: ${entityType}</li>
+        <li>Entity ID: ${entityId}</li>
+        ${formNumber ? `<li>Form: ${formNumber}</li>` : ''}`
+            : (formNumber ? `<li>Form: ${formNumber}</li>` : '')
+        }
+        <li>Tax Year: ${taxYear}</li>
+        <li>Amount: ${formatCurrency(p.amount)}</li>
+      </ul>
+    3. Submit "${label}" payment as directed.
+  </div>
+</div>
+`;
+}
+
+function formatCurrency(amt) {
+  if (!amt || isNaN(amt)) return '$0.00';
+  return new Intl.NumberFormat('en-US',{
+    style:'currency',
+    currency:'USD',
+    minimumFractionDigits:2
+  }).format(amt);
+}
+
+/******************************************************************************
+ * 8) ENABLE EDITING / DOWNLOAD EML
+ *****************************************************************************/
+function enablePreviewEditing() {
+  const previewArea = document.getElementById('previewArea');
+  if (previewArea.getAttribute('contenteditable') === 'false') {
+    previewArea.setAttribute('contenteditable', 'true');
+    previewArea.style.background = '#fff';
+    previewArea.style.borderColor = '#ccc';
+    previewArea.style.padding = '15px';
+    previewArea.style.margin = '10px 0';
+
+    if (!previewArea.previousElementSibling?.classList.contains('customize-email')) {
+      const customizeSection = document.createElement('div');
+      customizeSection.className = 'customize-email';
+      customizeSection.innerHTML = `
+        <h3>Customize Email</h3>
+        <div class="customize-field">
+          <label for="customGreeting">Greeting</label>
+          <input type="text" 
+                 id="customGreeting" 
+                 value="Hi ${formData.addresseeName || ''},"
+                 oninput="regeneratePreviewHTML()" />
+        </div>
+        <div class="customize-field">
+          <label for="personalNote">Personal Note (Optional)</label>
+          <textarea id="personalNote"
+                    oninput="regeneratePreviewHTML()"></textarea>
+        </div>
+      `;
+      previewArea.parentNode.insertBefore(customizeSection, previewArea);
+    }
+  }
+}
+
+function savePreviewEdits() {
+  const previewArea = document.getElementById('previewArea');
+  generatedEmailHTML = previewArea.innerHTML;
+  alert('Preview changes saved.');
+}
+
+function downloadEmlFile() {
+  const finalHTML = document.getElementById('previewArea').innerHTML;
+  const subject = `Tax Payment Instructions - Due by ${formData.paymentDueDate || ''}`;
+  const headers = [
+    'Subject: ' + subject,
+    'From: ',
+    'To: ',
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    'X-Unsent: 1',
+    ''
+  ].join('\r\n');
+
+  const emlContent = headers + '\r\n<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body>' +
+                     finalHTML + '</body></html>';
+
+  const blob = new Blob([emlContent], {type: 'message/rfc822'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'TaxPaymentInstructions.eml';
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
+/******************************************************************************
+ * 9) NEW: REPORT A BUG BUTTON
+ *****************************************************************************/
+function reportBug() {
+  // This will open the default email client, which can include Outlook if installed.
+  // You can customize the subject/body as desired:
+  window.location.href = "mailto:kyle@pc-cpas.com?subject=Tax%20Payment%20Wizard%20Bug%20Report&body=Please%20describe%20the%20bug%20you%20encountered...";
+}
+
+/******************************************************************************
+ * 10) PAGE INIT
+ *****************************************************************************/
+document.addEventListener('DOMContentLoaded', function() {
+  // Clear any previously saved wizard data so that the wizard always starts fresh
+  localStorage.removeItem('taxWizardData');
+  localStorage.removeItem('taxWizardStep');
+
+  // Initialize formData with a blank slate
+  Object.assign(formData, getInitialFormData());
+  
+  // Populate the state dropdown
+  const sel = document.getElementById('addStateSelector');
+  Object.keys(mergedStatesData).sort().forEach(st => {
+    const opt = document.createElement('option');
+    opt.value = st;
+    opt.textContent = st;
+    sel.appendChild(opt);
+  });
+  
+  if (formData.federalPayments?.length) renderFederalPayments();
+  if (formData.statePayments?.length) renderStatesList();
+  onFieldChange();
+
+  document.getElementById('step-1').classList.add('active');
+});
+
+function restoreFromStorage() {
+  const sData = localStorage.getItem('taxWizardData');
+  if (sData) {
+    Object.assign(formData, JSON.parse(sData));
+    if (formData.federalPayments?.length) renderFederalPayments();
+    if (formData.statePayments?.length) renderStatesList();
+    onFieldChange();
+  }
+}
+
+function updateReviewStep() {
+  document.getElementById('review-addressee').textContent = formData.addresseeName || '(Not set)';
+  document.getElementById('review-duedate').textContent = formData.paymentDueDate || '(Not set)';
+  document.getElementById('review-sender').textContent = formData.senderName || '(Not set)';
+
+  const fedReview = document.getElementById('review-federal');
+  if (!formData.federalPayments.length) {
+    fedReview.innerHTML = '<p>No federal payments added.</p>';
+  } else {
+    let html = '<ul style="margin:0; padding-left:20px;">';
+    formData.federalPayments.forEach(p => {
+      if (p.amount && p.amount.trim() !== '') {
+        html += `<li>$${p.amount} - ${p.type}${p.quarter ? ' (' + p.quarter + ')' : ''}</li>`;
+      } else {
+        html += `<li>${p.type}${p.quarter ? ' (' + p.quarter + ')' : ''} - No amount entered</li>`;
+      }
+    });
+    html += '</ul>';
+    fedReview.innerHTML = html;
+  }
+
+  const stReview = document.getElementById('review-states');
+  if (!formData.statePayments.length) {
+    stReview.innerHTML = '<p>No state payments added.</p>';
+  } else {
+    let html = '';
+    formData.statePayments.forEach(st => {
+      if (st.payments?.length) {
+        html += `<p><strong>${st.stateName}</strong></p><ul style="margin:0 0 16px; padding-left:20px;">`;
+        st.payments.forEach(p => {
+          if (p.amount && p.amount.trim() !== '') {
+            html += `<li>$${p.amount} - ${p.type}${p.quarter ? ' (' + p.quarter + ')' : ''}</li>`;
+          } else {
+            html += `<li>${p.type}${p.quarter ? ' (' + p.quarter + ')' : ''} - No amount entered</li>`;
+          }
+        });
+        html += '</ul>';
+      }
+    });
+    html += html || '<p>No state payments added.</p>';
+    stReview.innerHTML = html || '<p>No state payments added.</p>';
+  }
+
+  // Sync disclaimers checkbox in case user came back to this step
+  document.getElementById('showDisclaimers').checked = formData.showDisclaimers;
+}
+
+/******************************************************************************
+ * MISSING FUNCTIONS FOR TOGGLING BUSINESS FIELDS
+ *****************************************************************************/
+function onEntityTypeChange() {
+  const val = document.getElementById('entityType').value;
+  const businessFields = document.getElementById('businessFields');
+  if (val === 'business') {
+    businessFields.classList.remove('hidden');
+  } else {
+    businessFields.classList.add('hidden');
+    // Clear out fields if reverting to individual
+    document.getElementById('businessType').value = 'ccorp';
+    document.getElementById('entityId').value = '';
+    document.getElementById('entityName').value = '';
+    document.getElementById('caCorpForm').value = '';
+    document.getElementById('caCorpFormField').classList.add('hidden');
+  }
+  onFieldChange();
+}
+
+function onBusinessTypeChange() {
+  const val = document.getElementById('businessType').value;
+  const caCorpFormField = document.getElementById('caCorpFormField');
+  if (val === 'ccorp' || val === 'scorp') {
+    caCorpFormField.classList.remove('hidden');
+  } else {
+    caCorpFormField.classList.add('hidden');
+    document.getElementById('caCorpForm').value = '';
+  }
+  onFieldChange();
+}
+</script>
+
+</body>
+</html>
