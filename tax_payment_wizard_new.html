@@ -2331,7 +2331,9 @@ function addPaymentToState(stateIdx) {
     dueDate: '',
     amount: '',
     description: '',
-    taxPeriod: new Date().getFullYear()
+    taxPeriod: new Date().getFullYear(),
+    method: 'electronic',
+    voucherFile: null
   });
   renderStatePayments(stateIdx);
   regeneratePreviewHTML();
@@ -2350,7 +2352,9 @@ function addPTEPayment(stateIdx) {
     dueDate: '',
     amount: '',
     description: '',
-    taxPeriod: new Date().getFullYear()
+    taxPeriod: new Date().getFullYear(),
+    method: 'electronic',
+    voucherFile: null
   });
   renderStatePayments(stateIdx);
   regeneratePreviewHTML();
@@ -2389,6 +2393,10 @@ function updateStatePayment(stateIdx, pmtIdx, field, value, shouldReRender = tru
     // else do nothing for other custom labels
   }
 
+  if (field === 'method') {
+    payment.method = value;
+  }
+
   // 2) Now set the field value (like dueDate or quarter, etc.)
   if (field === 'dueDate') {
     payment[field] = formatDateToMMDDYYYY(value);
@@ -2400,6 +2408,25 @@ function updateStatePayment(stateIdx, pmtIdx, field, value, shouldReRender = tru
     renderStatePayments(stateIdx);
   }
   regeneratePreviewHTML();
+}
+
+function updateStatePaymentVoucher(stateIdx, pmtIdx, file) {
+  const payment = formData.statePayments[stateIdx].payments[pmtIdx];
+  if (!file) {
+    payment.voucherFile = null;
+    regeneratePreviewHTML();
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    payment.voucherFile = {
+      name: file.name,
+      type: file.type,
+      data: e.target.result.split(',')[1]
+    };
+    regeneratePreviewHTML();
+  };
+  reader.readAsDataURL(file);
 }
 
 function renderStatePayments(stateIdx) {
@@ -2472,6 +2499,14 @@ function renderStatePayments(stateIdx) {
           <div class="helper-text">Select payment type</div>
         </div>
         <div class="stacked-form-cell" style="margin-top: 12px;">
+          <label>Method</label>
+          <select onchange="updateStatePayment(${stateIdx}, ${pmtIdx}, 'method', this.value)">
+            <option value="electronic" ${p.method==='electronic'?'selected':''}>Electronic</option>
+            <option value="mail" ${p.method==='mail'?'selected':''}>Pay by Mail</option>
+          </select>
+          <div class="helper-text">How will you pay?</div>
+        </div>
+        <div class="stacked-form-cell" style="margin-top: 12px;">
           <label>Quarter</label>
           <select onchange="updateStatePayment(${stateIdx}, ${pmtIdx}, 'quarter', this.value)"
                   ${quarterEnabled ? '' : 'disabled'}>
@@ -2514,6 +2549,11 @@ function renderStatePayments(stateIdx) {
                     placeholder="Optional notes"
                     oninput="updateStatePayment(${stateIdx}, ${pmtIdx}, 'description', this.value, false)">${p.description||''}</textarea>
           <div class="helper-text">Additional details if needed</div>
+        </div>
+        <div class="stacked-form-cell" id="voucherUpload-${stateIdx}-${pmtIdx}" style="margin-top:12px; ${p.method==='mail' ? '' : 'display:none;'}">
+          <label>Voucher Attachment</label>
+          <input type="file" onchange="updateStatePaymentVoucher(${stateIdx}, ${pmtIdx}, this.files[0])" />
+          <div class="helper-text">${p.voucherFile ? 'Attached: ' + p.voucherFile.name : 'Attach voucher PDF'}</div>
         </div>
       </td>
       <td>
@@ -2801,22 +2841,16 @@ function buildStatePaymentSection(stateName, p) {
   const isCA = (stateName === 'California');
   const bgColor = isCA ? '#fef2f6' : '#f8fafc';
 
-  return `
-<div style="margin-bottom:20px;padding:15px;background:${bgColor};border-radius:8px;border:1px solid #e2e8f0;">
-  <div style="margin-bottom:12px;">${desc}</div>
-  <span style="background-color: #FFFF00; font-weight:bold; padding:4px 8px; border-radius:4px;">
-    Please pay ${formatCurrency(p.amount)} to ${stData.taxAgencyName || (stateName + ' Department of Revenue')}
-  </span>
-  ${
-    dateStr
-      ? `<div style="margin-top:12px;"><strong>Due Date:</strong> ${dateStr}</div>`
-      : ''
-  }
-  ${
-    p.description
-      ? `<div style="margin-top:8px;"><strong>Additional Notes:</strong> ${p.description}</div>`
-      : ''
-  }
+  let instructions = '';
+  if (p.method === 'mail') {
+    instructions = `
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+    <strong>Mailing Instructions:</strong><br/>
+    1. Print the attached voucher.<br/>
+    2. Mail the voucher and your check to the address shown on the voucher.<br/>
+  </div>`;
+  } else {
+    instructions = `
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
     <strong>Payment Instructions:</strong><br/>
     1. Go to <a href="${payUrl}" target="_blank">${payUrl}</a><br/>
@@ -2835,7 +2869,26 @@ function buildStatePaymentSection(stateName, p) {
         <li>Amount: ${formatCurrency(p.amount)}</li>
       </ul>
     3. Submit "${label}" payment as directed.
-  </div>
+  </div>`;
+  }
+
+  return `
+<div style="margin-bottom:20px;padding:15px;background:${bgColor};border-radius:8px;border:1px solid #e2e8f0;">
+  <div style="margin-bottom:12px;">${desc}</div>
+  <span style="background-color: #FFFF00; font-weight:bold; padding:4px 8px; border-radius:4px;">
+    Please pay ${formatCurrency(p.amount)} to ${stData.taxAgencyName || (stateName + ' Department of Revenue')}
+  </span>
+  ${
+    dateStr
+      ? `<div style="margin-top:12px;"><strong>Due Date:</strong> ${dateStr}</div>`
+      : ''
+  }
+  ${
+    p.description
+      ? `<div style="margin-top:8px;"><strong>Additional Notes:</strong> ${p.description}</div>`
+      : ''
+  }
+  ${instructions}
 </div>
 `;
 }
@@ -2847,6 +2900,18 @@ function formatCurrency(amt) {
     currency:'USD',
     minimumFractionDigits:2
   }).format(amt);
+}
+
+function collectVoucherAttachments() {
+  const atts = [];
+  formData.statePayments.forEach(st => {
+    st.payments.forEach(p => {
+      if (p.method === 'mail' && p.voucherFile) {
+        atts.push(p.voucherFile);
+      }
+    });
+  });
+  return atts;
 }
 
 /******************************************************************************
@@ -2893,19 +2958,37 @@ function savePreviewEdits() {
 function downloadEmlFile() {
   const finalHTML = document.getElementById('previewArea').innerHTML;
   const subject = `Tax Payment Instructions - Due by ${formData.paymentDueDate || ''}`;
+  const boundary = '----=_MIME_' + Date.now();
   const headers = [
     'Subject: ' + subject,
     'From: ',
     'To: ',
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: 7bit',
+    'MIME-Version: 1.0',
+    'Content-Type: multipart/mixed; boundary="' + boundary + '"',
     'X-Unsent: 1',
     ''
   ].join('\r\n');
 
-  const emlContent = headers + '\r\n<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body>' +
-                     finalHTML + '</body></html>';
+  let bodyParts = [];
+  bodyParts.push('--' + boundary);
+  bodyParts.push('Content-Type: text/html; charset=UTF-8');
+  bodyParts.push('Content-Transfer-Encoding: 7bit');
+  bodyParts.push('');
+  bodyParts.push('<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body>' + finalHTML + '</body></html>');
 
+  collectVoucherAttachments().forEach(att => {
+    bodyParts.push('--' + boundary);
+    const type = att.type || 'application/octet-stream';
+    bodyParts.push('Content-Type: ' + type + '; name="' + att.name + '"');
+    bodyParts.push('Content-Transfer-Encoding: base64');
+    bodyParts.push('Content-Disposition: attachment; filename="' + att.name + '"');
+    bodyParts.push('');
+    bodyParts.push(att.data);
+  });
+
+  bodyParts.push('--' + boundary + '--');
+
+  const emlContent = headers + bodyParts.join('\r\n');
   const blob = new Blob([emlContent], {type: 'message/rfc822'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
