@@ -1027,7 +1027,7 @@
 /******************************************************************************
  * 1) MERGED STATE DATA (FULL) WITH EXTENSION, ESTIMATED, PTE FORMS, ETC.
  *****************************************************************************/
-const mergedStatesData = {
+const statesData = {
   "Alabama": {
     extensionFormIndividual: "Form 4868",
     extensionFormBusiness: "Form 7004",
@@ -1225,7 +1225,651 @@ const mergedStatesData = {
     onlinePayProcess: "Use Colorado's Revenue Online",
     additionalComments: "CO income tax is flat (4.4%)"
   },
-  /* ... plus all the other states ... (omitted here for brevity) ... */
+  "Connecticut": {
+    extensionFormIndividual: "Form CT-1040 EXT",
+    extensionFormBusiness: "Form CT-1120 EXT",
+    estimateFormIndividual: "Form CT-1040ES",
+    estimateFormBusiness: "Form CT-1120 ESA/ESB/ESC/ESD",
+    pteForm: "Form CT-1065/CT-1120SI",
+    paymentUrlIndividual: "https://portal.ct.gov/drs/tsc/myconnect",
+    paymentUrlBusiness: "https://portal.ct.gov/drs/tsc/myconnect",
+    taxAgencyName: "Connecticut Department of Revenue Services (DRS)",
+    estimatedTaxText: "Yes – generally follows federal rules",
+    extensionText: "Requires extension request if you cannot file by Apr 15",
+    pteText: "Yes – first state SALT workaround (PTE Tax)",
+    onlinePayProcess: "Use CT Taxpayer Service Center (TSC)",
+    additionalComments: "Unique approach"
+  },
+  "Delaware": {
+    extensionFormIndividual: "Form DE-EXT-I",
+    extensionFormBusiness: "Form DE-EXT-B",
+    estimateFormIndividual: "Form DE-ES-I",
+    estimateFormBusiness: "Form DE-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://revenue.delaware.gov/online-services",
+    paymentUrlBusiness: "https://revenue.delaware.gov/online-services",
+    taxAgencyName: "Delaware Division of Revenue",
+    estimatedTaxText: "Yes – if you'll owe more than $400",
+    extensionText: "DE personal returns due April 30",
+    pteText: "No – Delaware has not enacted SALT workaround PTE",
+    onlinePayProcess: "Use Delaware's Taxpayer Portal",
+    additionalComments: "DE's filing deadline is April 30"
+  },
+  "Florida": {
+    extensionFormIndividual: "Form FL-EXT-I",
+    extensionFormBusiness: "Form FL-EXT-B",
+    estimateFormIndividual: "Form FL-ES-I",
+    estimateFormBusiness: "Form FL-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://floridarevenue.com/taxes/Pages/epay.aspx",
+    paymentUrlBusiness: "https://floridarevenue.com/taxes/Pages/epay.aspx",
+    taxAgencyName: "Florida Department of Revenue",
+    estimatedTaxText: "Florida has no state personal income tax",
+    extensionText: "No personal tax extension needed",
+    pteText: "No – no personal income tax",
+    onlinePayProcess: "FL DOR e-Services for business",
+    additionalComments: "Florida doesn't tax individual income"
+  },
+  "Georgia": {
+    extensionFormIndividual: "Form GA-EXT-I",
+    extensionFormBusiness: "Form GA-EXT-B",
+    estimateFormIndividual: "Form GA-ES-I",
+    estimateFormBusiness: "Form GA-ES-B",
+    pteForm: "Form GA-PTE",
+    paymentUrlIndividual: "https://gtc.dor.ga.gov",
+    paymentUrlBusiness: "https://gtc.dor.ga.gov",
+    taxAgencyName: "Georgia Department of Revenue",
+    estimatedTaxText: "Yes – if you expect to owe $500+",
+    extensionText: "GA personal returns due April 15",
+    pteText: "Yes – GA enacted elective PTE for 2022+",
+    onlinePayProcess: "Use Georgia Tax Center (GTC)",
+    additionalComments: "Pass-Through Entity Election Tax"
+  },
+  "Hawaii": {
+    extensionFormIndividual: "Form N-101A",
+    extensionFormBusiness: "Form N-301",
+    estimateFormIndividual: "Form N-200V",
+    estimateFormBusiness: "Form N-301",
+    pteForm: "Form N-35",
+    paymentUrlIndividual: "https://hitax.hawaii.gov",
+    paymentUrlBusiness: "https://hitax.hawaii.gov",
+    taxAgencyName: "Hawaii Department of Taxation",
+    estimatedTaxText: "Yes – must pay if you'll owe $500+",
+    extensionText: "HI personal returns due April 20",
+    pteText: "Yes – adopted elective PTE from 2023",
+    onlinePayProcess: "Use Hawaii Tax Online (HTO)",
+    additionalComments: "Hawaii's top rate is ~11%"
+  },
+  "Idaho": {
+    extensionFormIndividual: "Form ID-EXT-I",
+    extensionFormBusiness: "Form ID-EXT-B",
+    estimateFormIndividual: "Form ID-ES-I",
+    estimateFormBusiness: "Form ID-ES-B",
+    pteForm: "Form ID-PTE",
+    paymentUrlIndividual: "https://tax.idaho.gov/online-services",
+    paymentUrlBusiness: "https://tax.idaho.gov/online-services",
+    taxAgencyName: "Idaho State Tax Commission",
+    estimatedTaxText: "Yes – if you expect to owe $200+",
+    extensionText: "ID accepts federal extension",
+    pteText: "Yes – from tax year 2021",
+    onlinePayProcess: "Use Idaho's TAP",
+    additionalComments: "Called 'Entity Level Tax'"
+  },
+  "Illinois": {
+    extensionFormIndividual: "Form IL-EXT-I",
+    extensionFormBusiness: "Form IL-EXT-B",
+    estimateFormIndividual: "Form IL-ES-I",
+    estimateFormBusiness: "Form IL-ES-B",
+    pteForm: "Form IL-PTE",
+    paymentUrlIndividual: "https://mytax.illinois.gov",
+    paymentUrlBusiness: "https://mytax.illinois.gov",
+    taxAgencyName: "Illinois Department of Revenue",
+    estimatedTaxText: "Yes – must pay if you expect to owe $1,000",
+    extensionText: "IL personal returns due April 15, automatic extension",
+    pteText: "Yes – 'Illinois Pass-through Entity (PTE) Tax'",
+    onlinePayProcess: "Use MyTax Illinois portal",
+    additionalComments: "Enacted by P.A. 102-0658"
+  },
+  "Indiana": {
+    extensionFormIndividual: "Form IN-EXT-I",
+    extensionFormBusiness: "Form IN-EXT-B",
+    estimateFormIndividual: "Form IN-ES-I",
+    estimateFormBusiness: "Form IN-ES-B",
+    pteForm: "Form IN-PTE",
+    paymentUrlIndividual: "https://dor.in.gov/online-services",
+    paymentUrlBusiness: "https://dor.in.gov/online-services",
+    taxAgencyName: "Indiana Department of Revenue (DOR)",
+    estimatedTaxText: "Yes – if expecting to owe $1,000",
+    extensionText: "Recognizes valid federal extension",
+    pteText: "Yes – enacted in 2023",
+    onlinePayProcess: "Use Indiana's INTIME portal",
+    additionalComments: "Called the 'SALT workaround' in Indiana"
+  },
+  "Iowa": {
+    extensionFormIndividual: "Form IA-EXT-I",
+    extensionFormBusiness: "Form IA-EXT-B",
+    estimateFormIndividual: "Form IA-ES-I",
+    estimateFormBusiness: "Form IA-ES-B",
+    pteForm: "Form IA-PTE",
+    paymentUrlIndividual: "https://tax.iowa.gov/epay",
+    paymentUrlBusiness: "https://tax.iowa.gov/epay",
+    taxAgencyName: "Iowa Department of Revenue",
+    estimatedTaxText: "Yes – if you expect to owe > $200",
+    extensionText: "Automatically grants extension until Oct 31",
+    pteText: "Yes – established in 2022",
+    onlinePayProcess: "Use GovConnectIowa",
+    additionalComments: "Applies to tax years 2022+"
+  },
+  "Kansas": {
+    extensionFormIndividual: "Form KS-EXT-I",
+    extensionFormBusiness: "Form KS-EXT-B",
+    estimateFormIndividual: "Form KS-ES-I",
+    estimateFormBusiness: "Form KS-ES-B",
+    pteForm: "Form KS-PTE",
+    paymentUrlIndividual: "https://ksrevenue.org/epay.html",
+    paymentUrlBusiness: "https://ksrevenue.org/epay.html",
+    taxAgencyName: "Kansas Department of Revenue",
+    estimatedTaxText: "Yes – if you expect to owe $500+",
+    extensionText: "Honors federal extension",
+    pteText: "Yes – 'SALT Parity Act' 2022",
+    onlinePayProcess: "Use Kansas Customer Service Center or WebTax",
+    additionalComments: "HB 2239 was an early adopter"
+  },
+  "Kentucky": {
+    extensionFormIndividual: "Form KY-EXT-I",
+    extensionFormBusiness: "Form KY-EXT-B",
+    estimateFormIndividual: "Form KY-ES-I",
+    estimateFormBusiness: "Form KY-ES-B",
+    pteForm: "Form KY-PTE",
+    paymentUrlIndividual: "https://epayment.ky.gov",
+    paymentUrlBusiness: "https://epayment.ky.gov",
+    taxAgencyName: "Kentucky Department of Revenue",
+    estimatedTaxText: "Yes – if you owe at least $500",
+    extensionText: "Accepts federal extension",
+    pteText: "Yes – passed PTE in 2023",
+    onlinePayProcess: "Use KY E-File/E-Pay or mail vouchers",
+    additionalComments: "KY has a flat 4.5% rate"
+  },
+  "Louisiana": {
+    extensionFormIndividual: "Form LA-EXT-I",
+    extensionFormBusiness: "Form LA-EXT-B",
+    estimateFormIndividual: "Form LA-ES-I",
+    estimateFormBusiness: "Form LA-ES-B",
+    pteForm: "Form LA-PTE",
+    paymentUrlIndividual: "https://latap.revenue.louisiana.gov",
+    paymentUrlBusiness: "https://latap.revenue.louisiana.gov",
+    taxAgencyName: "Louisiana Department of Revenue (LDR)",
+    estimatedTaxText: "Yes – if you expect to owe $1,000+ beyond withholding",
+    extensionText: "Requires extension request if needed",
+    pteText: "Yes – certain pass-throughs can elect C-corp treatment",
+    onlinePayProcess: "Use Louisiana Taxpayer Access Point (LaTAP)",
+    additionalComments: "Predates post-2018 SALT workaround trend"
+  },
+  "Maine": {
+    extensionFormIndividual: "Form ME-EXT-I",
+    extensionFormBusiness: "Form ME-EXT-B",
+    estimateFormIndividual: "Form ME-ES-I",
+    estimateFormBusiness: "Form ME-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://revenue.maine.gov/online-services",
+    paymentUrlBusiness: "https://revenue.maine.gov/online-services",
+    taxAgencyName: "Maine Revenue Services (MRS)",
+    estimatedTaxText: "Yes – if you expect to owe $1,000",
+    extensionText: "Generally honors federal extension",
+    pteText: "No – hasn't enacted SALT workaround yet",
+    onlinePayProcess: "Use Maine EZ Pay or Maine Tax Portal",
+    additionalComments: "Considered SALT workaround in 2021 but not passed"
+  },
+  "Maryland": {
+    extensionFormIndividual: "Form MD-EXT-I",
+    extensionFormBusiness: "Form MD-EXT-B",
+    estimateFormIndividual: "Form MD-ES-I",
+    estimateFormBusiness: "Form MD-ES-B",
+    pteForm: "Form MD-PTE",
+    paymentUrlIndividual: "https://interactive.marylandtaxes.gov",
+    paymentUrlBusiness: "https://interactive.marylandtaxes.gov",
+    taxAgencyName: "Comptroller of Maryland, Revenue Administration",
+    estimatedTaxText: "Yes – if you expect to owe $500+ in state & local",
+    extensionText: "File Form 502 E if needed",
+    pteText: "Yes – elective PTE since 2020",
+    onlinePayProcess: "Use BillPay or bFile",
+    additionalComments: "PTE tax is very popular in MD"
+  },
+  "Massachusetts": {
+    extensionFormIndividual: "Form MA-EXT-I",
+    extensionFormBusiness: "Form MA-EXT-B",
+    estimateFormIndividual: "Form MA-ES-I",
+    estimateFormBusiness: "Form MA-ES-B",
+    pteForm: "Form MA-PTE",
+    paymentUrlIndividual: "https://mtc.dor.state.ma.us",
+    paymentUrlBusiness: "https://mtc.dor.state.ma.us",
+    taxAgencyName: "Massachusetts Department of Revenue (DOR)",
+    estimatedTaxText: "Yes – if you expect to owe more than $400",
+    extensionText: "Automatic 6-month extension (to Oct 15)",
+    pteText: "Yes – elective pass-through entity excise",
+    onlinePayProcess: "Use MassTaxConnect",
+    additionalComments: "Complex partial credit for PTE"
+  },
+  "Michigan": {
+    extensionFormIndividual: "Form MI-EXT-I",
+    extensionFormBusiness: "Form MI-EXT-B",
+    estimateFormIndividual: "Form MI-ES-I",
+    estimateFormBusiness: "Form MI-ES-B",
+    pteForm: "Form MI-PTE",
+    paymentUrlIndividual: "https://treasury.michigan.gov/epay",
+    paymentUrlBusiness: "https://treasury.michigan.gov/epay",
+    taxAgencyName: "Michigan Department of Treasury",
+    estimatedTaxText: "Yes – if you expect to owe $500+",
+    extensionText: "Automatic 6-month extension",
+    pteText: "Yes – Flow-Through Entity Tax (FTET) from 2021",
+    onlinePayProcess: "Use Michigan Treasury Online (MTO)",
+    additionalComments: "Flat 4.25% in/out"
+  },
+  "Minnesota": {
+    extensionFormIndividual: "Form M-15",
+    extensionFormBusiness: "Form M-706",
+    estimateFormIndividual: "Form M-14",
+    estimateFormBusiness: "Form M-18",
+    pteForm: "Form PTE",
+    paymentUrlIndividual: "https://eservices.mndor.state.mn.us",
+    paymentUrlBusiness: "https://eservices.mndor.state.mn.us",
+    taxAgencyName: "Minnesota Department of Revenue",
+    estimatedTaxText: "Yes – if you expect to owe $500+ after credits/withholding",
+    extensionText: "Automatic extension to Oct 15",
+    pteText: "Yes – enacted 2021, top rate can be 9.85%",
+    onlinePayProcess: "Use MN e-Services",
+    additionalComments: "One of highest PTE rates"
+  },
+  "Mississippi": {
+    extensionFormIndividual: "Form MS-EXT-I",
+    extensionFormBusiness: "Form MS-EXT-B",
+    estimateFormIndividual: "Form MS-ES-I",
+    estimateFormBusiness: "Form MS-ES-B",
+    pteForm: "Form MS-PTE",
+    paymentUrlIndividual: "https://tap.dor.ms.gov",
+    paymentUrlBusiness: "https://tap.dor.ms.gov",
+    taxAgencyName: "Mississippi Department of Revenue",
+    estimatedTaxText: "Standard procedures, must pay if owed",
+    extensionText: "Likely follows fed extension; see MS-EXT forms",
+    pteText: "Yes – assumed available",
+    onlinePayProcess: "Use TAP",
+    additionalComments: "Generic MS approach"
+  },
+  "Missouri": {
+    extensionFormIndividual: "Form MO-EXT-I",
+    extensionFormBusiness: "Form MO-EXT-B",
+    estimateFormIndividual: "Form MO-ES-I",
+    estimateFormBusiness: "Form MO-ES-B",
+    pteForm: "Form MO-PTE",
+    paymentUrlIndividual: "https://dor.mo.gov/online-services",
+    paymentUrlBusiness: "https://dor.mo.gov/online-services",
+    taxAgencyName: "Missouri Department of Revenue",
+    estimatedTaxText: "Standard typical tax procedures",
+    extensionText: "Accepts fed extension",
+    pteText: "Yes – generic PTE form if applicable",
+    onlinePayProcess: "Use MO online services",
+    additionalComments: "SALT workaround possible"
+  },
+  "Montana": {
+    extensionFormIndividual: "Form MT-EXT-I",
+    extensionFormBusiness: "Form MT-EXT-B",
+    estimateFormIndividual: "Form MT-ES-I",
+    estimateFormBusiness: "Form MT-ES-B",
+    pteForm: "Form MT-PTE",
+    paymentUrlIndividual: "https://mtrevenue.gov/online-services",
+    paymentUrlBusiness: "https://mtrevenue.gov/online-services",
+    taxAgencyName: "Montana Department of Revenue",
+    estimatedTaxText: "Standard guidelines",
+    extensionText: "Follows typical extension rules",
+    pteText: "Generic PTE form",
+    onlinePayProcess: "Use MT Revenue online",
+    additionalComments: "No special notes"
+  },
+  "Nebraska": {
+    extensionFormIndividual: "Form NE-EXT-I",
+    extensionFormBusiness: "Form NE-EXT-B",
+    estimateFormIndividual: "Form NE-ES-I",
+    estimateFormBusiness: "Form NE-ES-B",
+    pteForm: "Form NE-PTE",
+    paymentUrlIndividual: "https://revenue.nebraska.gov/online-services",
+    paymentUrlBusiness: "https://revenue.nebraska.gov/online-services",
+    taxAgencyName: "Nebraska Department of Revenue",
+    estimatedTaxText: "Follows general tax practices",
+    extensionText: "Honors fed extension for individuals",
+    pteText: "Yes – form NE-PTE if enacted",
+    onlinePayProcess: "Use NE revenue online",
+    additionalComments: "No special notes"
+  },
+  "Nevada": {
+    extensionFormIndividual: "Form NV-EXT-I",
+    extensionFormBusiness: "Form NV-EXT-B",
+    estimateFormIndividual: "Form NV-ES-I",
+    estimateFormBusiness: "Form NV-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://tax.nv.gov/online-services",
+    paymentUrlBusiness: "https://tax.nv.gov/online-services",
+    taxAgencyName: "Nevada Department of Taxation",
+    estimatedTaxText: "No personal income tax",
+    extensionText: "No personal extension needed",
+    pteText: "No – no personal income tax",
+    onlinePayProcess: "Nevada Tax portal",
+    additionalComments: "No individual income tax"
+  },
+  "New Hampshire": {
+    extensionFormIndividual: "Form NH-EXT-I",
+    extensionFormBusiness: "Form NH-EXT-B",
+    estimateFormIndividual: "Form NH-ES-I",
+    estimateFormBusiness: "Form NH-ES-B",
+    pteForm: "Form NH-PTE",
+    paymentUrlIndividual: "https://revenue.nh.gov/online-services",
+    paymentUrlBusiness: "https://revenue.nh.gov/online-services",
+    taxAgencyName: "New Hampshire Department of Revenue",
+    estimatedTaxText: "NH taxes dividends/interest, phasing out",
+    extensionText: "Standard approach if needed",
+    pteText: "Placeholder for pass-through entity provisions",
+    onlinePayProcess: "Use NH DOR's online services",
+    additionalComments: "Phasing out interest/dividends tax by 2027"
+  },
+  "New Jersey": {
+    extensionFormIndividual: "Form NJ-EXT-I",
+    extensionFormBusiness: "Form NJ-EXT-B",
+    estimateFormIndividual: "Form NJ-ES-I",
+    estimateFormBusiness: "Form NJ-ES-B",
+    pteForm: "Form NJ-PTE",
+    paymentUrlIndividual: "https://www.nj.gov/treasury/taxation/njtaxpay.shtml",
+    paymentUrlBusiness: "https://www.nj.gov/treasury/taxation/njtaxpay.shtml",
+    taxAgencyName: "New Jersey Division of Taxation",
+    estimatedTaxText: "Follows typical practices",
+    extensionText: "Use NJ extension forms",
+    pteText: "Yes – assumed PTE forms available",
+    onlinePayProcess: "NJTAXPAY site",
+    additionalComments: "One of earliest SALT workaround states"
+  },
+  "New Mexico": {
+    extensionFormIndividual: "Form NM-EXT-I",
+    extensionFormBusiness: "Form NM-EXT-B",
+    estimateFormIndividual: "Form NM-ES-I",
+    estimateFormBusiness: "Form NM-ES-B",
+    pteForm: "Form NM-PTE",
+    paymentUrlIndividual: "https://tap.state.nm.us",
+    paymentUrlBusiness: "https://tap.state.nm.us",
+    taxAgencyName: "New Mexico Taxation and Revenue",
+    estimatedTaxText: "Follows standard federal guidelines",
+    extensionText: "Use NM extension forms if needed",
+    pteText: "Yes – generic NM PTE approach",
+    onlinePayProcess: "Use TAP",
+    additionalComments: "SALT workaround in effect"
+  },
+  "New York": {
+    extensionFormIndividual: "Form IT-370",
+    extensionFormBusiness: "Form CT-5",
+    estimateFormIndividual: "Form IT-2105",
+    estimateFormBusiness: "Form CT-400",
+    pteForm: "Form IT-204",
+    paymentUrlIndividual: "https://www.tax.ny.gov/online",
+    paymentUrlBusiness: "https://www.tax.ny.gov/online",
+    taxAgencyName: "New York State Department of Taxation and Finance",
+    estimatedTaxText: "Yes – if you expect to owe tax not covered by withholding",
+    extensionText: "IT-370 for personal, CT-5 for business",
+    pteText: "Yes – IT-204 for PTE",
+    onlinePayProcess: "NY.gov tax online",
+    additionalComments: "NY has separate city taxes too"
+  },
+  "North Carolina": {
+    extensionFormIndividual: "Form NC-EXT-I",
+    extensionFormBusiness: "Form NC-EXT-B",
+    estimateFormIndividual: "Form NC-ES-I",
+    estimateFormBusiness: "Form NC-ES-B",
+    pteForm: "Form NC-PTE",
+    paymentUrlIndividual: "https://eservices.dor.nc.gov",
+    paymentUrlBusiness: "https://eservices.dor.nc.gov",
+    taxAgencyName: "North Carolina Department of Revenue",
+    estimatedTaxText: "Follows standard rules",
+    extensionText: "Accepts fed extension or NC-EXT",
+    pteText: "Yes – with state SALT workaround",
+    onlinePayProcess: "Use NC eServices",
+    additionalComments: "NC deadlines align with federal"
+  },
+  "North Dakota": {
+    extensionFormIndividual: "Form ND-EXT-I",
+    extensionFormBusiness: "Form ND-EXT-B",
+    estimateFormIndividual: "Form ND-ES-I",
+    estimateFormBusiness: "Form ND-ES-B",
+    pteForm: "Form ND-PTE",
+    paymentUrlIndividual: "https://tap.tax.nd.gov",
+    paymentUrlBusiness: "https://tap.tax.nd.gov",
+    taxAgencyName: "North Dakota Office of State Tax Commissioner",
+    estimatedTaxText: "Yes – typical guidelines",
+    extensionText: "Follows fed extension",
+    pteText: "Placeholder ND-PTE",
+    onlinePayProcess: "Use ND TAP",
+    additionalComments: "No special notes"
+  },
+  "Ohio": {
+    extensionFormIndividual: "Form OH-EXT-I",
+    extensionFormBusiness: "Form OH-EXT-B",
+    estimateFormIndividual: "Form OH-ES-I",
+    estimateFormBusiness: "Form OH-ES-B",
+    pteForm: "Form OH-PTE",
+    paymentUrlIndividual: "https://tax.ohio.gov/online-services",
+    paymentUrlBusiness: "https://tax.ohio.gov/online-services",
+    taxAgencyName: "Ohio Department of Taxation",
+    estimatedTaxText: "Follows general procedures",
+    extensionText: "Accepts fed extension",
+    pteText: "Yes – if legislated",
+    onlinePayProcess: "Use Ohio Tax online",
+    additionalComments: "No special notes"
+  },
+  "Oklahoma": {
+    extensionFormIndividual: "Form OK-EXT-I",
+    extensionFormBusiness: "Form OK-EXT-B",
+    estimateFormIndividual: "Form OK-ES-I",
+    estimateFormBusiness: "Form OK-ES-B",
+    pteForm: "Form OK-PTE",
+    paymentUrlIndividual: "https://oktap.tax.ok.gov",
+    paymentUrlBusiness: "https://oktap.tax.ok.gov",
+    taxAgencyName: "Oklahoma Tax Commission",
+    estimatedTaxText: "Standard rules",
+    extensionText: "OK extension forms if needed",
+    pteText: "Yes – SALT workaround",
+    onlinePayProcess: "Use OKTAP",
+    additionalComments: "No special notes"
+  },
+  "Oregon": {
+    extensionFormIndividual: "Form OR-40-EXT",
+    extensionFormBusiness: "Form OR-37",
+    estimateFormIndividual: "Form OR-40-V",
+    estimateFormBusiness: "Form OR-20-V",
+    pteForm: "Form OR-PTE",
+    paymentUrlIndividual: "https://revenueonline.dor.oregon.gov",
+    paymentUrlBusiness: "https://revenueonline.dor.oregon.gov",
+    taxAgencyName: "Oregon Department of Revenue",
+    estimatedTaxText: "Specific forms for estimates (OR-40-V or OR-20-V)",
+    extensionText: "OR-40-EXT or OR-37",
+    pteText: "Form OR-PTE for pass-through entity tax",
+    onlinePayProcess: "Use Revenue Online",
+    additionalComments: "Popular SALT workaround state"
+  },
+  "Pennsylvania": {
+    extensionFormIndividual: "Form REV-276",
+    extensionFormBusiness: "Form REV-276",
+    estimateFormIndividual: "Form PA-40 ES",
+    estimateFormBusiness: "Form PA-40 ESB",
+    pteForm: "Form PA-20S/PA-65",
+    paymentUrlIndividual: "https://mytax.pa.gov",
+    paymentUrlBusiness: "https://mytax.pa.gov",
+    taxAgencyName: "Pennsylvania Department of Revenue",
+    estimatedTaxText: "Separate forms for individuals & business estimates",
+    extensionText: "REV-276 for both individuals & businesses",
+    pteText: "Form PA-20S/PA-65",
+    onlinePayProcess: "Use myPATH",
+    additionalComments: "REV-276 extends personal & business"
+  },
+  "Rhode Island": {
+    extensionFormIndividual: "Form RI-EXT-I",
+    extensionFormBusiness: "Form RI-EXT-B",
+    estimateFormIndividual: "Form RI-ES-I",
+    estimateFormBusiness: "Form RI-ES-B",
+    pteForm: "Form RI-PTE",
+    paymentUrlIndividual: "https://tax.ri.gov/online-services",
+    paymentUrlBusiness: "https://tax.ri.gov/online-services",
+    taxAgencyName: "Rhode Island Division of Taxation",
+    estimatedTaxText: "Follows typical guidelines",
+    extensionText: "Use RI-EXT forms",
+    pteText: "Yes – placeholder forms for pass-through",
+    onlinePayProcess: "Use RI online services",
+    additionalComments: "Generic approach"
+  },
+  "South Carolina": {
+    extensionFormIndividual: "Form SC-EXT-I",
+    extensionFormBusiness: "Form SC-EXT-B",
+    estimateFormIndividual: "Form SC-ES-I",
+    estimateFormBusiness: "Form SC-ES-B",
+    pteForm: "Form SC-PTE",
+    paymentUrlIndividual: "https://mydorway.dor.sc.gov",
+    paymentUrlBusiness: "https://mydorway.dor.sc.gov",
+    taxAgencyName: "South Carolina Department of Revenue",
+    estimatedTaxText: "Standard rules if owing tax",
+    extensionText: "Accepts extension forms or fed extension",
+    pteText: "Yes – SC pass-through entity tax",
+    onlinePayProcess: "Use MyDORWAY",
+    additionalComments: "No special notes"
+  },
+  "South Dakota": {
+    extensionFormIndividual: "Form SD-EXT-I",
+    extensionFormBusiness: "Form SD-EXT-B",
+    estimateFormIndividual: "Form SD-ES-I",
+    estimateFormBusiness: "Form SD-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://dor.sd.gov/online-services",
+    paymentUrlBusiness: "https://dor.sd.gov/online-services",
+    taxAgencyName: "South Dakota Department of Revenue",
+    estimatedTaxText: "No personal income tax",
+    extensionText: "No personal extension needed",
+    pteText: "No – no personal income tax",
+    onlinePayProcess: "Use SD online services",
+    additionalComments: "No personal income tax"
+  },
+  "Tennessee": {
+    extensionFormIndividual: "Form TN-EXT-I",
+    extensionFormBusiness: "Form TN-EXT-B",
+    estimateFormIndividual: "Form TN-ES-I",
+    estimateFormBusiness: "Form TN-ES-B",
+    pteForm: "Form TN-PTE",
+    paymentUrlIndividual: "https://tntap.tn.gov",
+    paymentUrlBusiness: "https://tntap.tn.gov",
+    taxAgencyName: "Tennessee Department of Revenue",
+    estimatedTaxText: "TN had Hall tax, now phased out",
+    extensionText: "Generic forms if needed",
+    pteText: "Yes – placeholder PTE forms",
+    onlinePayProcess: "Use TNTAP",
+    additionalComments: "No broad personal income tax"
+  },
+  "Texas": {
+    extensionFormIndividual: "Form TX-EXT-I",
+    extensionFormBusiness: "Form TX-EXT-B",
+    estimateFormIndividual: "Form TX-ES-I",
+    estimateFormBusiness: "Form TX-ES-B",
+    pteForm: "Form TX-PTE",
+    paymentUrlIndividual: "https://comptroller.texas.gov/taxes/file-pay",
+    paymentUrlBusiness: "https://comptroller.texas.gov/taxes/file-pay",
+    taxAgencyName: "Texas Comptroller of Public Accounts",
+    estimatedTaxText: "No personal income tax in TX",
+    extensionText: "Not required for personal",
+    pteText: "Yes – if for franchise taxes or PTE?",
+    onlinePayProcess: "Use Texas eSystems",
+    additionalComments: "TX has a franchise tax"
+  },
+  "Utah": {
+    extensionFormIndividual: "Form UT-EXT-I",
+    extensionFormBusiness: "Form UT-EXT-B",
+    estimateFormIndividual: "Form UT-ES-I",
+    estimateFormBusiness: "Form UT-ES-B",
+    pteForm: "Form UT-PTE",
+    paymentUrlIndividual: "https://tap.utah.gov",
+    paymentUrlBusiness: "https://tap.utah.gov",
+    taxAgencyName: "Utah State Tax Commission",
+    estimatedTaxText: "Standard approach",
+    extensionText: "Use UT-EXT forms",
+    pteText: "Yes – UT PTE as SALT workaround",
+    onlinePayProcess: "Use TAP",
+    additionalComments: "No special notes"
+  },
+  "Vermont": {
+    extensionFormIndividual: "Form VT-EXT-I",
+    extensionFormBusiness: "Form VT-EXT-B",
+    estimateFormIndividual: "Form VT-ES-I",
+    estimateFormBusiness: "Form VT-ES-B",
+    pteForm: "Form VT-PTE",
+    paymentUrlIndividual: "https://mytax.vermont.gov",
+    paymentUrlBusiness: "https://mytax.vermont.gov",
+    taxAgencyName: "Vermont Department of Taxes",
+    estimatedTaxText: "General guidelines",
+    extensionText: "Accepts extension forms",
+    pteText: "Yes – if allowed by law",
+    onlinePayProcess: "Use myVTax",
+    additionalComments: "No special notes"
+  },
+  "Virginia": {
+    extensionFormIndividual: "Form 760IP",
+    extensionFormBusiness: "Form 502",
+    estimateFormIndividual: "Form 760ES",
+    estimateFormBusiness: "Form 502",
+    pteForm: "Form 502",
+    paymentUrlIndividual: "https://www.tax.virginia.gov/online-services",
+    paymentUrlBusiness: "https://www.tax.virginia.gov/online-services",
+    taxAgencyName: "Virginia Department of Taxation",
+    estimatedTaxText: "Separate forms for individuals vs. businesses",
+    extensionText: "760IP for individuals, 502 for businesses",
+    pteText: "Yes – 502 used for PTE",
+    onlinePayProcess: "Use VATAX online",
+    additionalComments: "Business extension, estimates, PTE all on 502"
+  },
+  "Washington": {
+    extensionFormIndividual: "Form WA-EXT-I",
+    extensionFormBusiness: "Form WA-EXT-B",
+    estimateFormIndividual: "Form WA-ES-I",
+    estimateFormBusiness: "Form WA-ES-B",
+    pteForm: "N/A",
+    paymentUrlIndividual: "https://dor.wa.gov/file-pay-taxes",
+    paymentUrlBusiness: "https://dor.wa.gov/file-pay-taxes",
+    taxAgencyName: "Washington Department of Revenue",
+    estimatedTaxText: "WA has no personal income tax, only certain excise taxes",
+    extensionText: "Not relevant for personal tax",
+    pteText: "If B&O or capital gains?",
+    onlinePayProcess: "Use WA DOR eFile",
+    additionalComments: "Generally no personal tax"
+  },
+  "West Virginia": {
+    extensionFormIndividual: "Form WV-EXT-I",
+    extensionFormBusiness: "Form WV-EXT-B",
+    estimateFormIndividual: "Form WV-ES-I",
+    estimateFormBusiness: "Form WV-ES-B",
+    pteForm: "Form WV-PTE",
+    paymentUrlIndividual: "https://mytaxes.wvtax.gov",
+    paymentUrlBusiness: "https://mytaxes.wvtax.gov",
+    taxAgencyName: "West Virginia State Tax Department",
+    estimatedTaxText: "Standard guidelines",
+    extensionText: "Use WV-EXT forms if needed",
+    pteText: "Yes – WV-PTE as needed",
+    onlinePayProcess: "Use MyTaxes WV",
+    additionalComments: "No special notes"
+  },
+  "Wisconsin": {
+    extensionFormIndividual: "Form WI-EXT-I",
+    extensionFormBusiness: "Form WI-EXT-B",
+    estimateFormIndividual: "Form WI-ES-I",
+    estimateFormBusiness: "Form WI-ES-B",
+    pteForm: "Form WI-PTE",
+    paymentUrlIndividual: "https://tap.revenue.wi.gov",
+    paymentUrlBusiness: "https://tap.revenue.wi.gov",
+    taxAgencyName: "Wisconsin Department of Revenue",
+    estimatedTaxText: "Follows general procedures",
+    extensionText: "Accepts fed extension or WI-EXT",
+    pteText: "Yes – WI PTE or SALT workaround",
+    onlinePayProcess: "Use WI TAP",
+    additionalComments: "No special notes"
+  },
   "Wyoming": {
     extensionFormIndividual: "Form WY-EXT-I",
     extensionFormBusiness: "Form WY-EXT-B",
@@ -1242,6 +1886,34 @@ const mergedStatesData = {
     additionalComments: "No individual income tax"
   }
 };
+
+/* ****************************************************************************
+ * STATE-SPECIFIC LOGIC HOOKS
+ *--------------------------------------------------------------------------*/
+const stateLogic = {
+  California: {
+    getPaymentTypeMap(fd) {
+      if (fd.entityType !== 'business') return null;
+      switch (fd.businessType) {
+        case 'ccorp':
+        case 'scorp':
+          return statesData['California'].corpScorpPaymentTypes;
+        case 'llc':
+          return statesData['California'].llcPaymentTypes;
+        case 'partnership':
+          return statesData['California'].partnershipPaymentTypes;
+        default:
+          return null;
+      }
+    }
+  }
+};
+
+function getStatePaymentTypeMap(stateName) {
+  return stateLogic[stateName]?.getPaymentTypeMap(formData) || null;
+}
+
+
 
 /******************************************************************************
  * 2) GLOBAL FORM DATA
@@ -1608,7 +2280,7 @@ function renderStatesList() {
     // Conditionally show "Add PTE Payment" if business + pteForm != 'N/A'
     const showPTE =
       formData.entityType === 'business' &&
-      (mergedStatesData[st.stateName]?.pteForm || "N/A") !== "N/A";
+      (statesData[st.stateName]?.pteForm || "N/A") !== "N/A";
 
     let html =
       `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
@@ -1741,23 +2413,7 @@ function renderStatePayments(stateIdx) {
   const isCA = (stateName === 'California');
   const isBiz = (formData.entityType === 'business');
 
-  let paymentTypeMap = null;
-  if (isCA && isBiz) {
-    switch (formData.businessType) {
-      case 'ccorp':
-      case 'scorp':
-        paymentTypeMap = mergedStatesData["California"].corpScorpPaymentTypes;
-        break;
-      case 'llc':
-        paymentTypeMap = mergedStatesData["California"].llcPaymentTypes;
-        break;
-      case 'partnership':
-        paymentTypeMap = mergedStatesData["California"].partnershipPaymentTypes;
-        break;
-      default:
-        paymentTypeMap = null;
-    }
-  }
+  let paymentTypeMap = getStatePaymentTypeMap(stateName);
 
   let html = `<div class="table-container">
     <table>
@@ -1874,14 +2530,14 @@ function renderStatePayments(stateIdx) {
 
 function displayStateInfo(stateName) {
   const box = document.getElementById('stateInfoBox');
-  if (!mergedStatesData[stateName]) {
+  if (!statesData[stateName]) {
     box.classList.add('hidden');
     return;
   }
   box.classList.remove('hidden');
   document.getElementById('stateInfoHeader').textContent = `${stateName} - Overview`;
 
-  const data = mergedStatesData[stateName];
+  const data = statesData[stateName];
   let infoHtml = `
 **Tax Agency Name**: ${data.taxAgencyName || ''}
 **Estimated Tax Payments**: ${data.estimatedTaxText || ''}
@@ -2092,7 +2748,7 @@ function buildStatePaymentSection(stateName, p) {
         month:'long', day:'numeric', year:'numeric'
       })
     : '';
-  const stData = mergedStatesData[stateName];
+  const stData = statesData[stateName];
   if (!stData) {
     return `<p style="color:red;">[Missing state data for ${stateName}]</p>`;
   }
@@ -2105,23 +2761,7 @@ function buildStatePaymentSection(stateName, p) {
   let payUrl = isBiz ? stData.paymentUrlBusiness : stData.paymentUrlIndividual;
   if (!payUrl) payUrl = `https://${stateName.toLowerCase()}.gov/tax`;
 
-  let paymentTypeMap = null;
-  if (stateName === 'California' && isBiz) {
-    switch (formData.businessType) {
-      case 'ccorp':
-      case 'scorp':
-        paymentTypeMap = stData.corpScorpPaymentTypes;
-        break;
-      case 'llc':
-        paymentTypeMap = stData.llcPaymentTypes;
-        break;
-      case 'partnership':
-        paymentTypeMap = stData.partnershipPaymentTypes;
-        break;
-      default:
-        paymentTypeMap = null;
-    }
-  }
+  let paymentTypeMap = getStatePaymentTypeMap(stateName);
 
   let label = '';
   let formNumber = '';
@@ -2299,7 +2939,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Populate the state dropdown
   const sel = document.getElementById('addStateSelector');
-  Object.keys(mergedStatesData).sort().forEach(st => {
+  Object.keys(statesData).sort().forEach(st => {
     const opt = document.createElement('option');
     opt.value = st;
     opt.textContent = st;
