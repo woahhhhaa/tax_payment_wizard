@@ -2875,7 +2875,9 @@ function buildStatePaymentSection(stateName, p) {
         <li>Payment Type: Pass-Through Entity Elective Tax (Form 3893)</li>
         <li>Period Beginning Date: January 1, ${taxYear} through December 31, ${taxYear}</li>
         <li>Payment Amount: ${formatCurrency(p.amount)}</li>
+
         <li>Payment Date: ${paymentDateStr || '[Select Payment Date]'}</li>
+        <li>Payment Date: ${dateStr || '[Select Payment Date]'}</li>
       </ul>
   </div>`;
   } else {
