@@ -2867,6 +2867,17 @@ function buildStatePaymentSection(stateName, p) {
     <strong>Payment Instructions:</strong><br/>
     1. Go to <a href="${payUrl}" target="_blank">${payUrl}</a><br/>
     2. Enter:
+
+        <ul style="margin:6px 0 0 20px;">
+          <li>Entity Name: ${entityName}</li>
+          <li>Entity Type: ${entityType}</li>
+          <li>Entity ID: ${entityId}</li>
+          <li>Form: ${caForm}</li>
+          <li>Payment Type: Pass-Through Entity Elective Tax (Form 3893)</li>
+          <li>Period Beginning Date: January 1, ${taxYear} through December 31, ${taxYear}</li>
+          <li>Payment Amount: ${formatCurrency(p.amount)}</li>
+          <li>Payment Date: [Select Payment Date]</li>
+        </ul>
       <ul style="margin:6px 0 0 20px;">
         <li>Entity Name: ${entityName}</li>
         <li>Entity Type: ${entityType}</li>
@@ -2879,6 +2890,7 @@ function buildStatePaymentSection(stateName, p) {
         <li>Payment Date: ${paymentDateStr || '[Select Payment Date]'}</li>
         <li>Payment Date: ${dateStr || '[Select Payment Date]'}</li>
       </ul>
+
   </div>`;
   } else {
     instructions = `
