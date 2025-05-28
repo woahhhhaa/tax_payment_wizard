@@ -2783,7 +2783,7 @@ function buildFederalPaymentSection(p) {
 }
 
 function buildStatePaymentSection(stateName, p) {
-  const dateStr = p.dueDate
+  const dueDateStr = p.dueDate
     ? new Date(p.dueDate.replace(/-/g,'/')).toLocaleDateString('en-US',{
         month:'long', day:'numeric', year:'numeric'
       })
@@ -2841,6 +2841,13 @@ function buildStatePaymentSection(stateName, p) {
   const isCA = (stateName === 'California');
   const bgColor = isCA ? '#fef2f6' : '#f8fafc';
 
+  const isCAPTE =
+    isCA &&
+    isBiz &&
+    label.toLowerCase().includes('pass-through entity');
+
+  const caForm = formData.caCorpForm || formNumber || 'Form 3893';
+
   let instructions = '';
   if (p.method === 'mail') {
     instructions = `
@@ -2848,6 +2855,23 @@ function buildStatePaymentSection(stateName, p) {
     <strong>Mailing Instructions:</strong><br/>
     1. Print the attached voucher.<br/>
     2. Mail the voucher and your check to the address shown on the voucher.<br/>
+  </div>`;
+  } else if (p.method === 'electronic' && isCAPTE) {
+    instructions = `
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+    <strong>Payment Instructions:</strong><br/>
+    1. Go to <a href="${payUrl}" target="_blank">${payUrl}</a><br/>
+    2. Enter:
+        <ul style="margin:6px 0 0 20px;">
+          <li>Entity Name: ${entityName}</li>
+          <li>Entity Type: ${entityType}</li>
+          <li>Entity ID: ${entityId}</li>
+          <li>Form: ${caForm}</li>
+          <li>Payment Type: Pass-Through Entity Elective Tax (Form 3893)</li>
+          <li>Period Beginning Date: January 1, ${taxYear} through December 31, ${taxYear}</li>
+          <li>Payment Amount: ${formatCurrency(p.amount)}</li>
+          <li>Payment Date: [Select Payment Date]</li>
+        </ul>
   </div>`;
   } else {
     instructions = `
@@ -2878,11 +2902,11 @@ function buildStatePaymentSection(stateName, p) {
   <span style="background-color: #FFFF00; font-weight:bold; padding:4px 8px; border-radius:4px;">
     Please pay ${formatCurrency(p.amount)} to ${stData.taxAgencyName || (stateName + ' Department of Revenue')}
   </span>
-  ${
-    dateStr
-      ? `<div style="margin-top:12px;"><strong>Due Date:</strong> ${dateStr}</div>`
-      : ''
-  }
+    ${
+      dueDateStr
+        ? `<div style="margin-top:12px;"><strong>Due Date:</strong> ${dueDateStr}</div>`
+        : ''
+    }
   ${
     p.description
       ? `<div style="margin-top:8px;"><strong>Additional Notes:</strong> ${p.description}</div>`
