@@ -2330,8 +2330,7 @@ function addPaymentToState(stateIdx) {
     amount: '',
     description: '',
     taxPeriod: '2025',
-    method: 'electronic',
-    voucherFile: null
+    method: 'electronic'
   });
   renderStatePayments(stateIdx);
   regeneratePreviewHTML();
@@ -2351,8 +2350,7 @@ function addPTEPayment(stateIdx) {
     amount: '',
     description: '',
     taxPeriod: '2025',
-    method: 'electronic',
-    voucherFile: null
+    method: 'electronic'
   });
   renderStatePayments(stateIdx);
   regeneratePreviewHTML();
@@ -2406,25 +2404,6 @@ function updateStatePayment(stateIdx, pmtIdx, field, value, shouldReRender = tru
     renderStatePayments(stateIdx);
   }
   regeneratePreviewHTML();
-}
-
-function updateStatePaymentVoucher(stateIdx, pmtIdx, file) {
-  const payment = formData.statePayments[stateIdx].payments[pmtIdx];
-  if (!file) {
-    payment.voucherFile = null;
-    regeneratePreviewHTML();
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    payment.voucherFile = {
-      name: file.name,
-      type: file.type,
-      data: e.target.result.split(',')[1]
-    };
-    regeneratePreviewHTML();
-  };
-  reader.readAsDataURL(file);
 }
 
 function renderStatePayments(stateIdx) {
@@ -2547,11 +2526,6 @@ function renderStatePayments(stateIdx) {
                     placeholder="Optional notes"
                     oninput="updateStatePayment(${stateIdx}, ${pmtIdx}, 'description', this.value, false)">${p.description||''}</textarea>
           <div class="helper-text">Additional details if needed</div>
-        </div>
-        <div class="stacked-form-cell" id="voucherUpload-${stateIdx}-${pmtIdx}" style="margin-top:12px; ${p.method==='mail' ? '' : 'display:none;'}">
-          <label>Voucher Attachment</label>
-          <input type="file" onchange="updateStatePaymentVoucher(${stateIdx}, ${pmtIdx}, this.files[0])" />
-          <div class="helper-text">${p.voucherFile ? 'Attached: ' + p.voucherFile.name : 'Attach voucher PDF'}</div>
         </div>
       </td>
       <td>
@@ -2676,7 +2650,7 @@ function buildEmailHTML() {
 <br><strong>Important Notes & References:</strong>
 <ul style="margin-top:8px;">
   <li><strong>Extension is not an extension to pay.</strong> Unpaid taxes after the deadline may incur penalties & interest. (See <a href="https://www.irs.gov" target="_blank">IRS.gov</a> and <a href="https://www.ftb.ca.gov" target="_blank">FTB.ca.gov</a>)</li>
-  <li><strong>Choose correct tax year/form:</strong> e.g., if extending 2024 taxes in April 2025, select 2024 for “Extension.”</li>
+  <li><strong>Choose correct tax year/form:</strong> e.g., if extending 2025 taxes in April 2026, select 2025 for “Extension.”</li>
   <li><strong>Payment confirmation:</strong> Always save the confirmation number or email from the IRS or FTB.</li>
   <li>For complete step-by-step instructions, see the official references at <a href="https://www.irs.gov/payments/direct-pay" target="_blank">IRS Direct Pay</a> and <a href="https://webapp.ftb.ca.gov/webpay" target="_blank">CA FTB Web Pay</a>.</li>
 </ul>
@@ -2862,8 +2836,8 @@ function buildStatePaymentSection(stateName, p) {
     instructions = `
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
     <strong>Mailing Instructions:</strong><br/>
-    1. Print the attached voucher.<br/>
-    2. Mail the voucher and your check to the address shown on the voucher.<br/>
+    1. Print the required state voucher from the payment portal or notice (if applicable).<br/>
+    2. Mail the voucher and your check to the address shown on the voucher/notice.<br/>
   </div>`;
   } else if (p.method === 'electronic' && isCAPTE) {
     // California business PTE electronic payment instructions
@@ -2936,18 +2910,6 @@ function formatCurrency(amt) {
   }).format(amt);
 }
 
-function collectVoucherAttachments() {
-  const atts = [];
-  formData.statePayments.forEach(st => {
-    st.payments.forEach(p => {
-      if (p.method === 'mail' && p.voucherFile) {
-        atts.push(p.voucherFile);
-      }
-    });
-  });
-  return atts;
-}
-
 /******************************************************************************
  * 8) ENABLE EDITING / DOWNLOAD EML
  *****************************************************************************/
@@ -3009,16 +2971,6 @@ function downloadEmlFile() {
   bodyParts.push('Content-Transfer-Encoding: 7bit');
   bodyParts.push('');
   bodyParts.push('<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body>' + finalHTML + '</body></html>');
-
-  collectVoucherAttachments().forEach(att => {
-    bodyParts.push('--' + boundary);
-    const type = att.type || 'application/octet-stream';
-    bodyParts.push('Content-Type: ' + type + '; name="' + att.name + '"');
-    bodyParts.push('Content-Transfer-Encoding: base64');
-    bodyParts.push('Content-Disposition: attachment; filename="' + att.name + '"');
-    bodyParts.push('');
-    bodyParts.push(att.data);
-  });
 
   bodyParts.push('--' + boundary + '--');
 
@@ -3160,5 +3112,411 @@ function onBusinessTypeChange() {
 }
 </script>
 
+<!--
+README (inlined)
+
+# Tax Payment Wizard
+
+A single-page, browser-based tool that helps a tax preparer generate clear, client-ready electronic payment instructions for federal and state income tax payments.
+
+The wizard walks you through four steps (Basic Info → Federal → State → Review) and produces a polished, editable email with step-by-step instructions and links for clients. It can also download an `.eml` file so you can open the message directly as a draft in your email client (Outlook, Apple Mail, etc.).
+
+---
+
+## Features
+
+### Multi-Step Wizard
+
+1. **Step 1 – Basic Info**
+   - Addressee (client name)
+   - Sender (preparer name)
+   - Pay-by date (must be a future date)
+   - Toggle to include/exclude a due date reminder in the email
+   - Entity type:
+     - Individual
+     - Business Entity
+   - Business-only fields (shown when entity = “Business”):
+     - Business type (C-Corp, S-Corp, Partnership, LLC)
+     - Entity ID
+     - Entity Name
+     - California corporate form (Form 100, 100S, 100W, 100X) for CA C-Corps and S-Corps
+
+2. **Step 2 – Federal Payments**
+   - Add any number of federal payments:
+     - Type: Extension, Estimated, or Balance Due
+     - Quarter (only enabled for Estimated payments)
+     - Due date
+     - Amount
+     - Tax period
+     - Notes
+   - Logic changes instructions based on:
+     - Individual vs Business
+     - Payment type (4868 vs 7004, 1040-ES vs 1120-W, 1040 vs 1120)
+
+3. **Step 3 – State Payments**
+   - Add one or more states from a dropdown.
+   - For each state:
+     - Add multiple payments
+     - Payment type (Extension, Estimated, Balance Due, PTE, etc.)
+     - Payment method:
+       - Electronic
+       - Pay by mail
+     - Quarter (enabled for “Estimated” types)
+     - Due date
+     - Amount
+     - Tax year
+     - Notes
+   - State overview box:
+     - Shows basic info, tax agency name, estimated tax rules, extension info, PTE notes, payment portal URL, and comments.
+   - Special logic for **California**:
+     - Separate payment type maps for:
+       - C-Corp / S-Corp (`corpScorpPaymentTypes`)
+       - LLCs (`llcPaymentTypes`)
+       - Partnerships (`partnershipPaymentTypes`)
+     - Handles CA PTE (Form 3893) and other specific payment types.
+   - Placeholder/summary data for all other states to keep instructions reasonably correct at a high level.
+
+4. **Step 4 – Review & Confirm**
+   - Summary of:
+     - Basic info (addressee, due date, sender)
+     - Federal payments (type, quarter, amounts)
+     - State payments (by state and payment type)
+   - Toggle to include or remove “Important Notes & References” disclaimers in the final email.
+   - Button to “Enable Final Edits”:
+     - Turns the preview into an editable area.
+     - Opens a small “Customize Email” section to adjust:
+       - Greeting
+       - Personal note
+   - Button to download an `.eml` file (“Open as Draft Email”).
+
+---
+
+## Live Email Preview
+
+The right-hand sidebar shows a **live email preview** as you fill out the wizard:
+
+- Header (From, To, Subject)
+- Body with:
+  - Greeting
+  - Due date reminder (optional)
+  - Detailed federal payment instructions (with IRS Direct Pay steps)
+  - Detailed state payment instructions (with state portal links)
+  - Optional personal note
+  - Optional “Important Notes & References” section:
+    - Extension vs payment reminder
+    - Correct tax year/form selection
+    - Payment confirmation best practices
+    - Links to IRS Direct Pay and CA FTB Web Pay
+
+You can enable final editing to tweak the message directly before downloading the `.eml`.
+
+---
+
+## Technology Stack
+
+- **HTML5** – Single static file (`tax_payment_wizard_new.html`)
+- **CSS** – Embedded styles for layout and UI (grid layout, sticky preview, stepper, etc.)
+- **Vanilla JavaScript** – No external dependencies:
+  - Manages wizard navigation and validation
+  - Maintains in-memory `formData` model
+  - Builds HTML email content
+  - Generates `.eml` files
+  - Implements special logic for state payment types and entity types
+
+There is no build step, bundler, or framework. This is designed to run as a simple static page in any modern browser.
+
+---
+
+## Getting Started
+
+### 1. Open the Wizard Locally
+
+If you just want to run it from your machine:
+
+1. Locate `tax_payment_wizard_new.html`.
+2. Double-click to open it in your browser, or right-click and choose “Open With” → your preferred browser.
+
+Optionally, you can serve it via a simple static server (e.g. `python -m http.server` in the project folder) if the browser restricts file URLs or you want a more realistic environment.
+
+### 2. Optional: Host It
+
+You can put this file on any static hosting solution:
+
+- GitHub Pages
+- Vercel / Netlify
+- Simple Apache/Nginx static site
+
+Just ensure the file is accessible over HTTPS so all links and behavior work cleanly.
+
+---
+
+## Usage Guide
+
+### Step 1 – Basic Info
+
+1. Enter **Recipient** and **Sender**.
+2. Choose the **Pay-by date**.
+3. Decide whether to show the due date in the client email.
+4. Choose **Individual** or **Business**:
+   - If Business:
+     - Pick your business type.
+     - For CA C-Corp/S-Corp, choose the appropriate CA corporate form.
+     - Enter entity name and ID.
+
+Click **Next Step**.
+
+### Step 2 – Federal Payments
+
+1. Click **“+ Add Federal Payment”** for each payment you want to include.
+2. For each payment:
+   - Choose a **Type**:
+     - Extension
+     - Estimated
+     - Balance Due
+   - If Estimated, select the **Quarter**.
+   - Enter **Due Date**, **Amount**, **Tax Period**, and any **Notes**.
+3. The preview will show:
+   - A highlighted “Please pay $X to the US Treasury” banner.
+   - IRS Direct Pay instructions tailored to:
+     - Individual vs Business
+     - Type of payment (4868, 1040-ES, 1040, 7004, 1120-W, 1120)
+
+Click **Next** when finished.
+
+### Step 3 – State Payments
+
+1. Use the “Select a State to Add” dropdown to pick any state.
+2. For each state you add:
+   - Use **“+ Add Payment”** to create one or more state payments.
+   - If the entity is a business and the state supports PTE, you may also see **“+ Add PTE Payment”**.
+3. For each payment:
+   - Choose **Payment Type** (dynamic options for CA business entities; generic options elsewhere).
+   - Choose **Method**:
+     - Electronic – client will pay via state portal.
+     - Pay by Mail – client will mail a check (with a state voucher from the portal/notice if required).
+   - Fill in **Quarter** (if “Estimated” type), **Due Date**, **Amount**, **Tax Year**, and **Notes**.
+4. The state info box on the same step gives you quick reference for that state’s:
+   - Tax agency name
+   - Estimated tax requirements
+   - Extension rules
+   - PTE overview
+   - Payment portal URL
+   - Additional comments
+
+Click **Next** when finished.
+
+### Step 4 – Review & Finalize
+
+1. Review the **Basic Information**, **Federal Payments**, and **State Payments** summaries.
+2. Decide whether to keep or remove the **“Important Notes & References”** section.
+3. Click **“Enable Final Edits”** if you want to:
+   - Edit the email greeting.
+   - Add/revise a personal note.
+   - Manually tweak text in the preview.
+
+When ready:
+
+- Click **“Open as Draft Email”** to download an `.eml` file.
+- Open the `.eml` file in your email client.
+- Confirm recipients, add CC/BCC as needed, and send.
+
+---
+
+## Data Model Overview
+
+The JavaScript maintains a `formData` object with:
+
+- `addresseeName`, `senderName`, `paymentDueDate`, `showDueDateReminder`
+- `entityType`, `businessType`, `entityId`, `entityName`, `caCorpForm`
+- `federalPayments`: array of payment objects:
+  - `type`, `quarter`, `dueDate`, `amount`, `description`, `taxPeriod`
+- `statePayments`: array of state objects:
+  - `stateName`
+  - `payments`: array of payment objects:
+    - `type`, `quarter`, `dueDate`, `amount`, `description`, `taxPeriod`, `method`
+- `showDisclaimers`: toggle for the disclaimer block
+
+There is also a `statesData` object that contains per-state metadata: form names, payment URLs, and notes.
+
+---
+
+## Developer Notes
+
+- **LocalStorage**:
+  - On page load, any previous `taxWizardData` and `taxWizardStep` in `localStorage` are cleared so the wizard starts fresh each time.
+  - `onFieldChange()` still writes the current `formData` into `localStorage` (useful if you want to re-enable persistence later).
+
+- **Validation**:
+  - Each step validates required fields before you can move forward.
+  - Error messages appear inline under fields that fail validation.
+
+- **Extending State Logic**:
+  - To refine or correct state behavior, edit the `statesData` object.
+  - For state-specific logic (e.g., CA business payment types), add or adjust entries in the `stateLogic` object.
+  - `getStatePaymentTypeMap(stateName)` is the hook used when rendering state payment options.
+
+- **Disclaimers section**:
+  - Controlled by `formData.showDisclaimers` and the checkbox on the Review step.
+  - The HTML for the disclaimer block is appended near the end of `buildEmailHTML()`.
+
+- **Bug Reporting button**:
+  - “Report a Bug” in the header triggers `mailto:kyle@milnertaxco.com` with a pre-filled subject and body.
+
+---
+
+## Known Limitations / Future Ideas
+
+- State data for some jurisdictions is summarized and may need ongoing maintenance as laws or portals change.
+- No server-side component; everything is in-browser.
+- No authentication or user management; designed as an internal tool for the preparer.
+- Potential future enhancements:
+  - Integrate with a practice management system or CRM via API.
+  - Read client details from a JSON file or API (so you don’t retype names/entity info).
+  - Add preset templates for common payment “packages” (e.g., standard 1040 extension + CA extension).
+  - Localize date formats and language if used outside the US.
+
+---
+
+LICENSE (Milner Tax Payment Wizard Source-Available License v1.0)
+Copyright (c) 2025, Kyle Milner. All rights reserved.
+
+1. Definitions
+
+"Software" means the Tax Payment Wizard HTML/CSS/JavaScript code and all
+associated text, state data, and documentation authored by Kyle Milner.
+
+"You" means the individual or legal entity exercising permissions under
+this license.
+
+"Non-Commercial Use" means use of the Software solely for your personal
+or internal business purposes, and not for sale, sublicense, hosting as
+a paid service, or any other activity where you or a third party receives
+direct or indirect monetary compensation specifically for the Software
+or any derivative work based substantially on it.
+
+"Derivative Work" means any work that is based on or incorporates the
+Software or any portion of it, including modifications, translations,
+adaptations, or combinations with other material.
+
+2. Grant of Rights (Non-Commercial Only)
+
+Subject to the terms of this license, the copyright holder grants you a
+limited, non-exclusive, non-transferable, non-sublicensable license to:
+
+  a) Use, run, and display the Software for Non-Commercial Use.
+
+  b) Modify the Software to create Derivative Works for your own
+     Non-Commercial Use.
+
+3. Restrictions
+
+You MAY NOT, without prior written permission from the copyright holder:
+
+  a) Sell, license, rent, lease, or otherwise commercially exploit the
+     Software or any Derivative Work.
+
+  b) Offer the Software or any Derivative Work as a paid or monetized
+     product or service (including but not limited to SaaS, templates,
+     or add-ons) whether directly or through a marketplace.
+
+  c) Repackage or redistribute the Software or any Derivative Work in a
+     way that competes with, substitutes for, or impersonates a product
+     or service offered by the copyright holder.
+
+  d) Remove or alter any copyright, attribution, or license notices
+     contained in the Software.
+
+Any use of the Software or Derivative Works outside of Non-Commercial
+Use is strictly prohibited unless covered by a separate written
+agreement signed by the copyright holder.
+
+4. Derivative Works
+
+You may create Derivative Works for your own Non-Commercial Use only.
+All Derivative Works remain subject to this license. You must ensure
+that any recipient of a Derivative Work receives a copy of this
+license and is bound by the same terms.
+
+You obtain no ownership interest in the underlying Software by creating
+a Derivative Work.
+
+5. Commercial Use Requires Separate Agreement
+
+If you wish to:
+
+  - Sell, resell, license, or otherwise commercialize the Software or
+    any Derivative Work, or
+  - Use the Software or any Derivative Work as part of a paid SaaS,
+    template, app, or other monetized product or service,
+
+you must first obtain a separate written agreement from the copyright
+holder (for example, a commercial license, revenue share agreement, or
+equity/royalty arrangement).
+
+Without such a written agreement, any commercial use is unauthorized
+and constitutes both a breach of this license and a violation of
+copyright law.
+
+6. Enforcement and Remedies
+
+If you use the Software or any Derivative Work in violation of this
+license:
+
+  - Your license automatically terminates, and
+  - Any continued use is unauthorized and may be treated as willful
+    copyright infringement.
+
+The copyright holder reserves all rights and remedies available under
+applicable law, including but not limited to:
+
+  - Injunctive relief to stop unauthorized use,
+  - Monetary damages (including, where applicable, recovery of profits
+    attributable to the infringement),
+  - Attorneys’ fees and costs where permitted, and
+  - Negotiation or litigation of additional equitable remedies.
+
+Nothing in this license limits the copyright holder’s ability to seek
+a financial or equitable resolution (for example, profit sharing,
+royalties, or other negotiated consideration) in connection with an
+unauthorized commercial use.
+
+7. Attribution
+
+If you publicly show, write about, or share the Software or any
+Derivative Work (for example in demos, screenshots, blog posts, or
+presentations), you must give reasonable attribution such as:
+
+  "Based on the Tax Payment Wizard by Kyle Milner (milnertaxco.com)."
+
+8. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES,
+OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+9. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT
+BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
+PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUE, ARISING OUT OF OR
+RELATING TO THIS LICENSE OR THE USE OF THE SOFTWARE, EVEN IF ADVISED
+OF THE POSSIBILITY OF SUCH DAMAGES.
+
+10. Governing Law
+
+This license and any dispute arising out of or relating to it shall be
+governed by the laws of the State of California, without regard to its
+conflict of laws principles.
+
+11. Acceptance
+
+By downloading, using, modifying, or distributing the Software, you
+acknowledge that you have read, understood, and agreed to be bound
+by the terms of this license.
+-->
 </body>
 </html>
