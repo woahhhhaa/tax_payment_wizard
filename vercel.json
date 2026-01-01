@@ -1,9 +1,8 @@
 {
   "rewrites": [
-    { 
-      "source": "/", 
-      "destination": "/index.html" 
+    {
+      "source": "/",
+      "destination": "/tax_payment_wizard_new.html"
     }
   ]
 }
-

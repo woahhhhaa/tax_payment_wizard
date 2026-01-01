@@ -1,5 +1,18 @@
 import OpenAI from "openai";
 
+function getApiKey() {
+  return (
+    process.env.OPENAI_API_KEY ||
+    process.env.OPENAI_KEY ||
+    process.env.OPENAI_APIKEY ||
+    ""
+  ).trim();
+}
+
+function getModel() {
+  return (process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
+}
+
 // JSON Schema the model must output
 const ACTION_SCHEMA = {
   type: "object",
@@ -81,17 +94,29 @@ function extractJsonText(resp) {
 }
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+
+  if (req.method === "GET") {
+    const hasKey = Boolean(getApiKey());
+    res.status(200).json({
+      ok: true,
+      has_openai_key: hasKey,
+      model: getModel(),
+      message:
+        "POST JSON { message, context } to this endpoint to use the assistant.",
+    });
+    return;
+  }
+
   if (req.method !== "POST") {
-    res.status(405).json({ assistant_message: "Method not allowed", actions: [] });
+    res
+      .status(405)
+      .json({ assistant_message: "Method not allowed", actions: [] });
     return;
   }
 
   try {
-    const apiKey =
-      process.env.OPENAI_API_KEY ||
-      process.env.OPENAI_API_KEY ||
-      process.env.OPENAI_KEY ||
-      process.env.OPENAI_APIKEY;
+    const apiKey = getApiKey();
     if (!apiKey) {
       res.status(500).json({
         assistant_message:
@@ -103,6 +128,14 @@ export default async function handler(req, res) {
 
     const client = new OpenAI({ apiKey });
     const { message, context } = req.body || {};
+    const userMessage = typeof message === "string" ? message.trim() : "";
+    if (!userMessage) {
+      res.status(400).json({
+        assistant_message: "Missing 'message' in request body.",
+        actions: [],
+      });
+      return;
+    }
 
     const system = `
 You are an AI assistant embedded in a Tax Payment Wizard.
@@ -121,11 +154,11 @@ Return ONLY JSON that matches the schema.
 
     const input = [
       { role: "system", content: system },
-      { role: "user", content: JSON.stringify({ message, context }) },
+      { role: "user", content: JSON.stringify({ message: userMessage, context }) },
     ];
 
     const resp = await client.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+      model: getModel(),
       input,
       text: {
         format: {
