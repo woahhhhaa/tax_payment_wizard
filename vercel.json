@@ -1,7 +1,9 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    { "source": "/", "destination": "/tax_payment_wizard_new.html" }
+    { 
+      "source": "/", 
+      "destination": "/index.html" 
+    }
   ],
   "headers": [
     {
