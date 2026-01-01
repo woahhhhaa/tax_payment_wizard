@@ -3169,7 +3169,14 @@ async function assistantSend() {
       body: JSON.stringify(payload)
     });
 
-    if (!resp.ok) throw new Error(`Assistant API error (HTTP ${resp.status})`);
+    if (!resp.ok) {
+      let details = '';
+      try {
+        const t = await resp.text();
+        details = t ? `\n\n${t.slice(0, 500)}` : '';
+      } catch {}
+      throw new Error(`Assistant API error (HTTP ${resp.status})${details}`);
+    }
     const plan = await resp.json();
 
     if (plan?.assistant_message) {
@@ -3185,7 +3192,7 @@ async function assistantSend() {
     setAssistantStatus('');
     appendAssistantMessage(
       'assistant',
-      'I could not reach the AI endpoint. If you are opening the HTML via file://, run the local server and open via http://localhost instead.'
+      `AI request failed. Make sure \`/api/assistant\` is deployed and \`OPENAI_API_KEY\` is set in Vercel.\n\n${String(e?.message || e)}`
     );
   } finally {
     setAssistantBusy(false);

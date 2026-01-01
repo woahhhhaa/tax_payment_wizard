@@ -68,7 +68,11 @@ function extractJsonText(resp) {
   for (const item of out) {
     const content = Array.isArray(item?.content) ? item.content : [];
     for (const c of content) {
-      if (c?.type === "output_text" && typeof c?.text === "string" && c.text.trim()) {
+      if (
+        c?.type === "output_text" &&
+        typeof c?.text === "string" &&
+        c.text.trim()
+      ) {
         return c.text.trim();
       }
     }
