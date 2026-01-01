@@ -11,8 +11,6 @@ app.use(express.json({ limit: "1mb" }));
 // http://localhost:3000/tax_payment_wizard_new.html
 app.use(express.static(path.join(process.cwd(), "public")));
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 // JSON Schema the model must output
 const ACTION_SCHEMA = {
   type: "object",
@@ -117,9 +115,111 @@ function extractJsonText(resp) {
   return "";
 }
 
+function hasNonEmptyText(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasAmount(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "number") return Number.isFinite(value);
+  return String(value).trim().length > 0;
+}
+
+function isEstimatedType(paymentType) {
+  return String(paymentType || "").toLowerCase().includes("estimated");
+}
+
+function enforceAssistantRequirements(plan) {
+  const input = plan && typeof plan === "object" ? plan : {};
+  const actions = Array.isArray(input.actions) ? input.actions : [];
+
+  const kept = [];
+  const issues = [];
+
+  for (const a of actions) {
+    const type = String(a?.type || "");
+
+    if (type === "add_federal_payment") {
+      const missing = [];
+      if (!hasNonEmptyText(a?.payment_type)) missing.push("payment type");
+      if (!hasAmount(a?.amount)) missing.push("amount");
+      if (!hasNonEmptyText(a?.due_date)) missing.push("due date");
+      if (isEstimatedType(a?.payment_type) && !hasNonEmptyText(a?.quarter)) {
+        missing.push("quarter (Q1–Q4)");
+      }
+
+      if (missing.length) {
+        issues.push(`Federal payment is missing: ${missing.join(", ")}.`);
+        continue;
+      }
+      kept.push(a);
+      continue;
+    }
+
+    if (type === "add_state_payment") {
+      const missing = [];
+      if (!hasNonEmptyText(a?.state)) missing.push("state");
+      if (!hasNonEmptyText(a?.payment_type)) missing.push("payment type");
+      if (!hasAmount(a?.amount)) missing.push("amount");
+      if (!hasNonEmptyText(a?.due_date)) missing.push("due date");
+      if (isEstimatedType(a?.payment_type) && !hasNonEmptyText(a?.quarter)) {
+        missing.push("quarter (Q1–Q4)");
+      }
+
+      if (missing.length) {
+        const label = hasNonEmptyText(a?.state)
+          ? `${String(a.state).trim()} state payment`
+          : "State payment";
+        issues.push(`${label} is missing: ${missing.join(", ")}.`);
+        continue;
+      }
+      kept.push(a);
+      continue;
+    }
+
+    // Non-payment actions are always allowed.
+    kept.push(a);
+  }
+
+  let assistantMessage = hasNonEmptyText(input.assistant_message)
+    ? String(input.assistant_message)
+    : "";
+
+  if (issues.length) {
+    const lines = [
+      assistantMessage
+        ? assistantMessage.trim()
+        : "I need a bit more info before I can add those payment(s).",
+      "",
+      "Missing required details:",
+      ...issues.map((t) => `- ${t}`),
+      "",
+      'Example reply: "Federal Estimated Q1 $5000 due 06/15/2026"',
+    ].filter(Boolean);
+    assistantMessage = lines.join("\n");
+  }
+
+  return {
+    assistant_message: assistantMessage,
+    actions: kept,
+  };
+}
+
+app.get("/api/assistant", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const hasKey = Boolean(String(process.env.OPENAI_API_KEY || "").trim());
+  res.status(200).json({
+    ok: true,
+    has_openai_key: hasKey,
+    model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+    message: "POST JSON { message, context } to this endpoint to use the assistant.",
+  });
+});
+
 app.post("/api/assistant", async (req, res) => {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+    if (!apiKey) {
       res.status(500).json({
         assistant_message:
           "OPENAI_API_KEY is not set on the server. Set it in your environment and restart.",
@@ -129,27 +229,90 @@ app.post("/api/assistant", async (req, res) => {
     }
 
     const { message, context } = req.body || {};
+    const userMessage = typeof message === "string" ? message.trim() : "";
+    if (!userMessage) {
+      res.status(400).json({
+        assistant_message: "Missing 'message' in request body.",
+        actions: [],
+      });
+      return;
+    }
 
     const system = `
 You are an AI assistant embedded in a Tax Payment Wizard.
-Convert the user's request into an action plan that matches the provided JSON schema.
+Your job: convert the user's request into an action plan that matches the provided JSON schema.
 
-Rules:
-- If user asks for a new client, include create_client (and optionally set_basic_info with addressee_name).
-- Only set pay_by_date if the user explicitly specifies a pay-by date.
-- For Federal payments, prefer payment_type values: Extension, Estimated, Balance Due.
+INPUT FORMAT:
+- The user message content is JSON: { "message": string, "context": object }.
+- "message" is what the user just typed.
+- "context" may include:
+  - sessionName
+  - clients: [{ clientId, clientName }]
+  - activeClientId
+  - activeClient (current form data snapshot)
+  - assistantThread: an array of prior messages [{ role: "user"|"assistant", text: string }]
+
+ABSOLUTE OUTPUT RULE:
+- Return ONLY valid JSON matching the schema (no prose outside JSON).
+- Every action object must include ALL schema keys; set irrelevant ones to null.
+
+CRITICAL “DO NOT GUESS” RULE:
+- Do NOT invent or guess missing amounts, due dates, quarters, tax years, entity IDs, or entity legal names.
+- If required details are missing, ask follow-up questions in assistant_message and DO NOT emit payment actions yet.
+- You MAY emit safe actions that don’t require guessing (create_client, select_client, set_basic_info for known fields).
+
+HOW TO HANDLE FOLLOW-UPS:
+- If the user’s latest message is a short answer (e.g., “$10k due 6/15/2026”), use context.assistantThread and context.activeClient to infer what they are answering.
+- Ask for ALL missing required fields at once (avoid multiple back-and-forth turns).
+
+CLIENT TARGETING RULES:
+- If the user asks to create a new client, include create_client.
+- If the user references an existing client by name/id, include select_client.
+- Otherwise, assume edits apply to context.activeClientId.
+
+FIELD REQUIREMENTS (ENFORCE THESE):
+A) Business client basics (when entity_type="business"):
+- business_type is required (ccorp/scorp/partnership/llc).
+- entity_name and entity_id are required before creating state payment actions for a business.
+- ca_corp_form is optional; ask only if needed or explicitly mentioned.
+
+B) add_federal_payment requirements:
+- MUST have payment_type, amount, due_date.
+- If payment_type is Estimated, MUST have quarter (Q1–Q4).
+- tax_year and notes may be null.
+
+C) add_state_payment requirements:
+- MUST have state, payment_type, amount, due_date.
+- If payment_type is Estimated (or contains “estimated”), MUST have quarter.
+- method may be null unless the user explicitly requests mail; default is electronic when null.
+- tax_year and notes may be null.
+
+NORMALIZATION / PREFERENCES:
+- Federal payment_type must be one of: Extension, Estimated, Balance Due.
 - For California individual estimated payments, use payment_type: "Estimated Tax Payment (Form 540-ES)".
+- For California business PTE, prefer payment_type: "pte".
+- If state abbreviations are given (e.g. "CA"), convert to full name ("California").
+
+DATE HANDLING:
 - Dates may be given as MM/DD/YYYY or YYYY-MM-DD; return the same string you received.
 - If tax_year is not specified and this is an Estimated Q4 payment due in January, infer tax_year = due_year - 1.
+- Otherwise, leave tax_year null unless explicitly provided.
+
+FOLLOW-UP MESSAGE FORMAT (assistant_message):
+When details are missing:
+1) Confirm what you did (e.g., created/selected client, set entity type).
+2) List missing required items as bullets.
+3) Provide a single example reply the user can paste.
 
 Return ONLY JSON that matches the schema.
 `.trim();
 
     const input = [
       { role: "system", content: system },
-      { role: "user", content: JSON.stringify({ message, context }) },
+      { role: "user", content: JSON.stringify({ message: userMessage, context }) },
     ];
 
+    const client = new OpenAI({ apiKey });
     const resp = await client.responses.create({
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
       input,
@@ -172,8 +335,9 @@ Return ONLY JSON that matches the schema.
       return;
     }
 
-    const plan = JSON.parse(jsonText);
-    res.json(plan);
+    const parsed = JSON.parse(jsonText);
+    const plan = enforceAssistantRequirements(parsed);
+    res.status(200).json(plan);
   } catch (err) {
     console.error(err);
     const status = err?.status || err?.response?.status;

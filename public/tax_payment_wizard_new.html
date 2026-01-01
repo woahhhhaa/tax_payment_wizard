@@ -2250,6 +2250,7 @@ function newSession() {
   localStorage.removeItem(SESSION_STORAGE_KEY);
   session = null;
   activeClientId = null;
+  clearAssistantConversation();
   loadSessionFromStorage();
   session.clients = [];
   activeClientId = null;
@@ -2857,10 +2858,18 @@ function syncSessionAfterChange(options = {}) {
 // AI ASSISTANT (front-end)
 // =========================
 let assistantRequestInFlight = false;
+let assistantThread = []; // [{ role: 'user'|'assistant', text: string }]
 
 function setAssistantStatus(text) {
   const el = document.getElementById('assistantStatus');
   if (el) el.textContent = text || '';
+}
+
+function clearAssistantConversation() {
+  assistantThread = [];
+  setAssistantStatus('');
+  const box = document.getElementById('assistantMessages');
+  if (box) box.innerHTML = '';
 }
 
 function setAssistantBusy(isBusy) {
@@ -2872,6 +2881,9 @@ function setAssistantBusy(isBusy) {
 }
 
 function appendAssistantMessage(role, text) {
+  assistantThread.push({ role, text: String(text ?? '') });
+  if (assistantThread.length > 20) assistantThread = assistantThread.slice(-20);
+
   const box = document.getElementById('assistantMessages');
   if (!box) return;
 
@@ -3177,7 +3189,8 @@ async function assistantSend() {
         clientName: c.data?.addresseeName || ''
       })),
       activeClientId: activeClientId || '',
-      activeClient: snapshotFormData()
+      activeClient: snapshotFormData(),
+      assistantThread
     }
   };
 

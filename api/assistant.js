@@ -123,6 +123,96 @@ function extractJsonText(resp) {
   return "";
 }
 
+function hasNonEmptyText(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasAmount(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "number") return Number.isFinite(value);
+  return String(value).trim().length > 0;
+}
+
+function isEstimatedType(paymentType) {
+  return String(paymentType || "").toLowerCase().includes("estimated");
+}
+
+function enforceAssistantRequirements(plan) {
+  const input = plan && typeof plan === "object" ? plan : {};
+  const actions = Array.isArray(input.actions) ? input.actions : [];
+
+  const kept = [];
+  const issues = [];
+
+  for (const a of actions) {
+    const type = String(a?.type || "");
+
+    if (type === "add_federal_payment") {
+      const missing = [];
+      if (!hasNonEmptyText(a?.payment_type)) missing.push("payment type");
+      if (!hasAmount(a?.amount)) missing.push("amount");
+      if (!hasNonEmptyText(a?.due_date)) missing.push("due date");
+      if (isEstimatedType(a?.payment_type) && !hasNonEmptyText(a?.quarter)) {
+        missing.push("quarter (Q1–Q4)");
+      }
+
+      if (missing.length) {
+        issues.push(
+          `Federal payment is missing: ${missing.join(", ")}.`
+        );
+        continue;
+      }
+      kept.push(a);
+      continue;
+    }
+
+    if (type === "add_state_payment") {
+      const missing = [];
+      if (!hasNonEmptyText(a?.state)) missing.push("state");
+      if (!hasNonEmptyText(a?.payment_type)) missing.push("payment type");
+      if (!hasAmount(a?.amount)) missing.push("amount");
+      if (!hasNonEmptyText(a?.due_date)) missing.push("due date");
+      if (isEstimatedType(a?.payment_type) && !hasNonEmptyText(a?.quarter)) {
+        missing.push("quarter (Q1–Q4)");
+      }
+
+      if (missing.length) {
+        const label = hasNonEmptyText(a?.state)
+          ? `${String(a.state).trim()} state payment`
+          : "State payment";
+        issues.push(`${label} is missing: ${missing.join(", ")}.`);
+        continue;
+      }
+      kept.push(a);
+      continue;
+    }
+
+    // Non-payment actions are always allowed.
+    kept.push(a);
+  }
+
+  let assistantMessage = hasNonEmptyText(input.assistant_message)
+    ? String(input.assistant_message)
+    : "";
+
+  if (issues.length) {
+    const lines = [
+      assistantMessage ? assistantMessage.trim() : "I need a bit more info before I can add those payment(s).",
+      "",
+      "Missing required details:",
+      ...issues.map((t) => `- ${t}`),
+      "",
+      'Example reply: "Federal Estimated Q1 $5000 due 06/15/2026"'
+    ].filter(Boolean);
+    assistantMessage = lines.join("\n");
+  }
+
+  return {
+    assistant_message: assistantMessage,
+    actions: kept,
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -169,15 +259,69 @@ export default async function handler(req, res) {
 
     const system = `
 You are an AI assistant embedded in a Tax Payment Wizard.
-Convert the user's request into an action plan that matches the provided JSON schema.
+Your job: convert the user's request into an action plan that matches the provided JSON schema.
 
-Rules:
-- If user asks for a new client, include create_client (and optionally set_basic_info with addressee_name).
-- Only set pay_by_date if the user explicitly specifies a pay-by date.
-- For Federal payments, prefer payment_type values: Extension, Estimated, Balance Due.
+INPUT FORMAT:
+- The user message content is JSON: { "message": string, "context": object }.
+- "message" is what the user just typed.
+- "context" may include:
+  - sessionName
+  - clients: [{ clientId, clientName }]
+  - activeClientId
+  - activeClient (current form data snapshot)
+  - assistantThread: an array of prior messages [{ role: "user"|"assistant", text: string }]
+
+ABSOLUTE OUTPUT RULE:
+- Return ONLY valid JSON matching the schema (no prose outside JSON).
+- Every action object must include ALL schema keys; set irrelevant ones to null.
+
+CRITICAL “DO NOT GUESS” RULE:
+- Do NOT invent or guess missing amounts, due dates, quarters, tax years, entity IDs, or entity legal names.
+- If required details are missing, ask follow-up questions in assistant_message and DO NOT emit payment actions yet.
+- You MAY emit safe actions that don’t require guessing (create_client, select_client, set_basic_info for known fields).
+
+HOW TO HANDLE FOLLOW-UPS:
+- If the user’s latest message is a short answer (e.g., “$10k due 6/15/2026”), use context.assistantThread and context.activeClient to infer what they are answering.
+- Ask for ALL missing required fields at once (avoid multiple back-and-forth turns).
+
+CLIENT TARGETING RULES:
+- If the user asks to create a new client, include create_client.
+- If the user references an existing client by name/id, include select_client.
+- Otherwise, assume edits apply to context.activeClientId.
+
+FIELD REQUIREMENTS (ENFORCE THESE):
+A) Business client basics (when entity_type="business"):
+- business_type is required (ccorp/scorp/partnership/llc).
+- entity_name and entity_id are required before creating state payment actions for a business.
+- ca_corp_form is optional; ask only if needed or explicitly mentioned.
+
+B) add_federal_payment requirements:
+- MUST have payment_type, amount, due_date.
+- If payment_type is Estimated, MUST have quarter (Q1–Q4).
+- tax_year and notes may be null.
+
+C) add_state_payment requirements:
+- MUST have state, payment_type, amount, due_date.
+- If payment_type is Estimated (or contains “estimated”), MUST have quarter.
+- method may be null unless the user explicitly requests mail; default is electronic when null.
+- tax_year and notes may be null.
+
+NORMALIZATION / PREFERENCES:
+- Federal payment_type must be one of: Extension, Estimated, Balance Due.
 - For California individual estimated payments, use payment_type: "Estimated Tax Payment (Form 540-ES)".
+- For California business PTE, prefer payment_type: "pte".
+- If state abbreviations are given (e.g. "CA"), convert to full name ("California").
+
+DATE HANDLING:
 - Dates may be given as MM/DD/YYYY or YYYY-MM-DD; return the same string you received.
 - If tax_year is not specified and this is an Estimated Q4 payment due in January, infer tax_year = due_year - 1.
+- Otherwise, leave tax_year null unless explicitly provided.
+
+FOLLOW-UP MESSAGE FORMAT (assistant_message):
+When details are missing:
+1) Confirm what you did (e.g., created/selected client, set entity type).
+2) List missing required items as bullets.
+3) Provide a single example reply the user can paste.
 
 Return ONLY JSON that matches the schema.
 `.trim();
@@ -209,8 +353,10 @@ Return ONLY JSON that matches the schema.
       return;
     }
 
-    res.status(200).setHeader("Content-Type", "application/json");
-    res.send(jsonText);
+    const parsed = JSON.parse(jsonText);
+    const plan = enforceAssistantRequirements(parsed);
+
+    res.status(200).json(plan);
   } catch (err) {
     console.error(err);
     const status = err?.status || err?.response?.status;
