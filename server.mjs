@@ -147,7 +147,16 @@ Return ONLY JSON that matches the schema.
     res.json(plan);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ assistant_message: "Server error", actions: [] });
+    const status = err?.status || err?.response?.status;
+    const message =
+      err?.message ||
+      err?.response?.data?.error?.message ||
+      err?.error?.message ||
+      "Unknown error";
+    res.status(500).json({
+      assistant_message: `Server error calling OpenAI${status ? ` (status ${status})` : ""}: ${message}`,
+      actions: [],
+    });
   }
 });
 
@@ -156,4 +165,3 @@ app.listen(PORT, () => {
     `Server running: http://localhost:${PORT}/tax_payment_wizard_new.html`
   );
 });
-

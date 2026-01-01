@@ -87,16 +87,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    const apiKey =
+      process.env.OPENAI_API_KEY ||
+      process.env.OPENAI_API_KEY ||
+      process.env.OPENAI_KEY ||
+      process.env.OPENAI_APIKEY;
+    if (!apiKey) {
       res.status(500).json({
         assistant_message:
-          "Server is missing OPENAI_API_KEY. Set it in Vercel Project Settings → Environment Variables.",
+          "Server is missing OPENAI_API_KEY. Set it in Vercel Project Settings → Environment Variables, then redeploy.",
         actions: [],
       });
       return;
     }
 
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = new OpenAI({ apiKey });
     const { message, context } = req.body || {};
 
     const system = `
@@ -145,7 +150,16 @@ Return ONLY JSON that matches the schema.
     res.send(jsonText);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ assistant_message: "Server error", actions: [] });
+    const status = err?.status || err?.response?.status;
+    const message =
+      err?.message ||
+      err?.response?.data?.error?.message ||
+      err?.error?.message ||
+      "Unknown error";
+
+    res.status(500).json({
+      assistant_message: `Server error calling OpenAI${status ? ` (status ${status})` : ""}: ${message}`,
+      actions: [],
+    });
   }
 }
-
