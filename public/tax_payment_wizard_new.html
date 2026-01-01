@@ -860,12 +860,12 @@
           <div class="helper-text">Select a date in MM/DD/YYYY format (must be a future date)</div>
           <input type="date" 
                  id="paymentDueDate" 
-                 value="2026-04-15"
                  onchange="onFieldChange()" 
                  required
                  aria-required="true"
           />
           <div class="error-message" role="alert"></div>
+          <div id="payByDateWarning" class="helper-text" style="display:none;color:#b45309;margin-top:8px;"></div>
 
           <div class="toggle-switch">
             <input type="checkbox" 
@@ -950,7 +950,7 @@
         <p>
           Add one or more Federal payments
           <span class="info-tooltip"
-                title="Extension (Form 4868 or 7004) to extend filing deadline; Estimated (Form 1040-ES or 1120-W); Balance Due for a filed return.">
+                title="Extension: extends filing deadline (not time to pay); Estimated: quarterly payments; Balance Due: payment for a filed return. Instructions differ for individuals vs. businesses.">
             ?
           </span>
         </p>
@@ -2649,7 +2649,7 @@ function exportSessionCsv() {
         PaymentScope: 'federal',
         State: '',
         PaymentType: p.type || '',
-        Method: '',
+        Method: p.method || '',
         Quarter: p.quarter || '',
         TaxYear: p.taxPeriod || '',
         DueDate: normalizeDateForCsv(p.dueDate),
@@ -2803,7 +2803,8 @@ function generateSessionDrafts() {
   session.clients.forEach(job => {
     const data = job.data || {};
     const html = buildEmailHTMLFromData(data, {
-      includeDisclaimers: data.showDisclaimers ?? true
+      includeDisclaimers: data.showDisclaimers ?? true,
+      includePreviewHeader: false
     });
     const subjectDate = formatDueDateForSubject(data.paymentDueDate);
     const subject = `Tax Payment Instructions - Due ${subjectDate || ''}`;
@@ -3079,6 +3080,18 @@ function applyAssistantPlan(plan) {
       if (!taxYear && pType.toLowerCase().includes('estimated') && quarter === 'Q4') {
         taxYear = inferTaxYearForEstimatedQ4(due) || '';
       }
+      if (!taxYear) {
+        taxYear = inferTaxYearForPayment({
+          paymentType: pType,
+          quarter,
+          dueDate: due,
+          payByDate: formData.paymentDueDate
+        });
+      }
+
+      const method = formData.entityType === 'business'
+        ? recommendedBusinessFederalMethod(formData)
+        : 'direct_pay';
 
       formData.federalPayments.push({
         type: pType,
@@ -3086,7 +3099,8 @@ function applyAssistantPlan(plan) {
         dueDate: due,
         amount: a.amount != null ? String(a.amount) : '',
         description: a.notes != null ? String(a.notes) : '',
-        taxPeriod: taxYear || '2025'
+        taxPeriod: taxYear,
+        method
       });
     }
 
@@ -3119,6 +3133,14 @@ function applyAssistantPlan(plan) {
       if (!taxYear && String(paymentType).toLowerCase().includes('estimated') && quarter === 'Q4') {
         taxYear = inferTaxYearForEstimatedQ4(due) || '';
       }
+      if (!taxYear) {
+        taxYear = inferTaxYearForPayment({
+          paymentType,
+          quarter,
+          dueDate: due,
+          payByDate: formData.paymentDueDate
+        });
+      }
 
       st.payments.push({
         type: String(paymentType),
@@ -3126,7 +3148,7 @@ function applyAssistantPlan(plan) {
         dueDate: due,
         amount: a.amount != null ? String(a.amount) : '',
         description: a.notes != null ? String(a.notes) : '',
-        taxPeriod: taxYear || '2025',
+        taxPeriod: taxYear,
         method: (a.method === 'mail') ? 'mail' : 'electronic'
       });
     }
@@ -3265,11 +3287,125 @@ function onFieldChange() {
   syncSessionAfterChange();
 }
 
+function defaultPayByDateISO() {
+  const now = new Date();
+  const year = now.getFullYear();
+
+  const today = new Date(year, now.getMonth(), now.getDate());
+  today.setHours(0, 0, 0, 0);
+
+  const apr15ThisYear = new Date(year, 3, 15); // month is 0-based
+  apr15ThisYear.setHours(0, 0, 0, 0);
+
+  const targetYear = today.getTime() < apr15ThisYear.getTime() ? year : year + 1;
+  const target = new Date(targetYear, 3, 15);
+
+  const yyyy = target.getFullYear();
+  const mm = String(target.getMonth() + 1).padStart(2, '0');
+  const dd = String(target.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function defaultPayByDateMMDDYYYY() {
+  return formatDateToMMDDYYYY(defaultPayByDateISO());
+}
+
+function parseAnyDateToLocalDate(value) {
+  const iso = toISODateForInput(value);
+  if (!iso) return null;
+
+  const parts = iso.split('-');
+  if (parts.length !== 3) return null;
+  const yyyy = Number(parts[0]);
+  const mm = Number(parts[1]);
+  const dd = Number(parts[2]);
+  if (!Number.isFinite(yyyy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return null;
+
+  const d = new Date(yyyy, mm - 1, dd);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function findEarliestPaymentDueDate(data) {
+  const dates = [];
+  (data?.federalPayments || []).forEach(p => {
+    const d = parseAnyDateToLocalDate(p?.dueDate);
+    if (d) dates.push(d);
+  });
+  (data?.statePayments || []).forEach(st => {
+    (st?.payments || []).forEach(p => {
+      const d = parseAnyDateToLocalDate(p?.dueDate);
+      if (d) dates.push(d);
+    });
+  });
+  if (!dates.length) return null;
+
+  let min = dates[0];
+  for (let i = 1; i < dates.length; i++) {
+    if (dates[i].getTime() < min.getTime()) min = dates[i];
+  }
+  return min;
+}
+
+function updatePayByDateWarning() {
+  const el = document.getElementById('payByDateWarning');
+  if (!el) return;
+
+  const payByIso = document.getElementById('paymentDueDate')?.value || '';
+  const payByDate = parseAnyDateToLocalDate(payByIso);
+  const earliest = findEarliestPaymentDueDate(formData);
+
+  if (!payByDate || !earliest) {
+    el.textContent = '';
+    el.style.display = 'none';
+    return;
+  }
+
+  if (earliest.getTime() < payByDate.getTime()) {
+    const earliestLabel = earliest.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    el.textContent = `Warning: One or more payments are due before your chosen pay-by date (earliest due: ${earliestLabel}).`;
+    el.style.display = 'block';
+  } else {
+    el.textContent = '';
+    el.style.display = 'none';
+  }
+}
+
+function inferTaxYearForPayment({ paymentType, quarter, dueDate, payByDate }) {
+  const typeLower = String(paymentType || '').toLowerCase();
+  const q = String(quarter || '').trim().toUpperCase();
+
+  const due = parseAnyDateToLocalDate(dueDate);
+  const payBy = parseAnyDateToLocalDate(payByDate);
+
+  if (typeLower.includes('estimated')) {
+    if (q === 'Q4' && due && due.getMonth() === 0) {
+      return String(due.getFullYear() - 1);
+    }
+    if (due) return String(due.getFullYear());
+    if (payBy) return String(payBy.getFullYear());
+    return String(new Date().getFullYear());
+  }
+
+  const basis = due || payBy;
+  if (!basis) return String(new Date().getFullYear());
+
+  const year = basis.getFullYear();
+  // Most return/extension payments in Jan–Apr are for the prior tax year.
+  if (basis.getMonth() <= 3) return String(year - 1);
+  return String(year);
+}
+
 // Helper for initial data
 function getInitialFormData() {
   return {
     addresseeName: '',
-    paymentDueDate: '2026-04-15',
+    paymentDueDate: defaultPayByDateMMDDYYYY(),
     senderName: '',
     showDueDateReminder: true,
     federalPayments: [],
@@ -3333,7 +3469,7 @@ function loadFormDataIntoUI(data) {
   if (senderEl) senderEl.value = merged.senderName || '';
 
   const payByEl = document.getElementById('paymentDueDate');
-  if (payByEl) payByEl.value = toISODateForInput(merged.paymentDueDate) || '2026-04-15';
+  if (payByEl) payByEl.value = toISODateForInput(merged.paymentDueDate) || defaultPayByDateISO();
 
   const dueReminderEl = document.getElementById('showDueDateReminder');
   if (dueReminderEl) dueReminderEl.checked = merged.showDueDateReminder;
@@ -3576,6 +3712,21 @@ function extractClientBase(row) {
 function attachPaymentToJob(job, row) {
   const scope = String(row.PaymentScope || '').toLowerCase();
 
+  const rawMethod = String(row.Method || '').trim().toLowerCase();
+  let method = '';
+  if (scope === 'state') {
+    method = rawMethod === 'mail' ? 'mail' : 'electronic';
+  } else if (scope === 'federal') {
+    if (!rawMethod) method = 'direct_pay';
+    else if (rawMethod === 'electronic') method = 'direct_pay';
+    else if (rawMethod === 'directpay' || rawMethod === 'direct_pay' || rawMethod === 'direct') method = 'direct_pay';
+    else if (rawMethod === 'eftps' || rawMethod.includes('eftps')) method = 'eftps';
+    else if (rawMethod === 'other') method = 'eftps';
+    else method = 'direct_pay';
+  } else {
+    method = rawMethod;
+  }
+
   const payment = {
     type: row.PaymentType || 'Extension',
     quarter: row.Quarter != null ? String(row.Quarter).trim() : '',
@@ -3583,7 +3734,7 @@ function attachPaymentToJob(job, row) {
     amount: row.Amount != null ? String(row.Amount).trim() : '',
     description: row.Notes != null ? String(row.Notes).trim() : '',
     taxPeriod: row.TaxYear != null ? String(row.TaxYear).trim() : '',
-    method: String(row.Method || 'electronic').toLowerCase()
+    method
   };
 
   if (scope === 'federal') {
@@ -3625,14 +3776,66 @@ function convertJobToFormDataLike(job) {
 /******************************************************************************
  * 5) FEDERAL PAYMENTS
  *****************************************************************************/
+const IRS_DIRECT_PAY_SUPPORTED_BUSINESS_FORMS = new Set([
+  '1065',
+  '1120',
+  '1120-S'
+]);
+
+function normalizeFederalMethod(value) {
+  const s = String(value ?? '').trim().toLowerCase();
+  if (!s) return '';
+
+  if (s === 'direct_pay' || s === 'directpay' || s === 'direct') return 'direct_pay';
+  if (s === 'electronic') return 'direct_pay';
+  if (s === 'eftps' || s.includes('eftps')) return 'eftps';
+  if (s === 'other') return 'eftps';
+  return '';
+}
+
+function getBusinessReturnFormForDirectPay(data) {
+  const bt = String(data?.businessType || '').toLowerCase();
+  switch (bt) {
+    case 'ccorp':
+      return '1120';
+    case 'scorp':
+      return '1120-S';
+    case 'partnership':
+      return '1065';
+    case 'llc':
+      // LLC filing form can vary; 1065 is a common default for multi-member LLCs.
+      return '1065';
+    default:
+      return '';
+  }
+}
+
+function recommendedBusinessFederalMethod(data) {
+  const form = getBusinessReturnFormForDirectPay(data);
+  if (!form) return 'direct_pay';
+  return IRS_DIRECT_PAY_SUPPORTED_BUSINESS_FORMS.has(form) ? 'direct_pay' : 'eftps';
+}
+
 function addFederalPayment() {
+  const payByIso = document.getElementById('paymentDueDate')?.value || defaultPayByDateISO();
+  const taxPeriod = inferTaxYearForPayment({
+    paymentType: 'Extension',
+    quarter: '',
+    dueDate: '',
+    payByDate: payByIso
+  });
+  const method = formData.entityType === 'business'
+    ? recommendedBusinessFederalMethod(formData)
+    : 'direct_pay';
+
   formData.federalPayments.push({
     type: 'Extension',
     quarter: '',
     dueDate: '',
     amount: '',
     description: '',
-    taxPeriod: '2025'
+    taxPeriod,
+    method
   });
   renderFederalPayments();
   regeneratePreviewHTML();
@@ -3643,18 +3846,24 @@ function updateFederalPayment(idx, field, val, skipRender=false) {
   const fp = formData.federalPayments[idx];
 
   if (field === 'type') {
-    if (val === 'Extension') {
-      fp.quarter = '';
-      fp.taxPeriod = '2025';
-    } else if (val === 'Balance Due') {
-      fp.quarter = '';
-      fp.taxPeriod = '2025';
-    } else {
-      fp.taxPeriod = '2025';
+    const isEstimated = String(val || '').toLowerCase().includes('estimated');
+    if (!isEstimated) fp.quarter = '';
+
+    const hasTaxYear = String(fp.taxPeriod || '').trim() !== '';
+    if (!hasTaxYear) {
+      const payByIso = document.getElementById('paymentDueDate')?.value || '';
+      fp.taxPeriod = inferTaxYearForPayment({
+        paymentType: val,
+        quarter: fp.quarter,
+        dueDate: fp.dueDate,
+        payByDate: payByIso
+      });
     }
   }
   if (field === 'dueDate') {
     fp.dueDate = formatDateToMMDDYYYY(val);
+  } else if (field === 'method') {
+    fp.method = val;
   } else {
     fp[field] = val;
   }
@@ -3675,14 +3884,17 @@ function renderFederalPayments() {
   container.innerHTML = '';
   if (!formData.federalPayments.length) return;
 
+  const isBiz = formData.entityType === 'business';
+
   let html = `<div class="table-container"><table>
     <tr>
-      <th>Type & Quarter</th>
+      <th>Type, Quarter & Method</th>
       <th>Due Date & Amount</th>
       <th>Tax Period & Notes</th>
       <th></th>
     </tr>`;
   formData.federalPayments.forEach((p, idx) => {
+    const method = normalizeFederalMethod(p.method) || (isBiz ? recommendedBusinessFederalMethod(formData) : 'direct_pay');
     html += `<tr>
       <td>
         <div class="stacked-form-cell">
@@ -3708,6 +3920,18 @@ function renderFederalPayments() {
           </select>
           <div class="helper-text">For estimated tax only</div>
         </div>
+        ${
+          isBiz
+            ? `<div class="stacked-form-cell" style="margin-top: 12px;">
+                <label>Method</label>
+                <select onchange="updateFederalPayment(${idx}, 'method', this.value)">
+                  <option value="direct_pay" ${method === 'direct_pay' ? 'selected' : ''}>IRS Direct Pay (if available)</option>
+                  <option value="eftps" ${method === 'eftps' ? 'selected' : ''}>EFTPS / other IRS options</option>
+                </select>
+                <div class="helper-text">If Direct Pay doesn’t show your form, use another IRS method</div>
+              </div>`
+            : ''
+        }
       </td>
       <td>
         <div class="stacked-form-cell">
@@ -3840,13 +4064,21 @@ function addPaymentToState(stateIdx) {
     defaultType = 'originalReturnPayment';
   }
 
+  const payByIso = document.getElementById('paymentDueDate')?.value || defaultPayByDateISO();
+  const taxPeriod = inferTaxYearForPayment({
+    paymentType: defaultType,
+    quarter: '',
+    dueDate: '',
+    payByDate: payByIso
+  });
+
   stateObj.payments.push({
     type: defaultType,
     quarter: '',
     dueDate: '',
     amount: '',
     description: '',
-    taxPeriod: '2025',
+    taxPeriod,
     method: 'electronic'
   });
   renderStatePayments(stateIdx);
@@ -3862,12 +4094,21 @@ function addPTEPayment(stateIdx) {
   if (stateName === 'California' && formData.entityType === 'business') {
     pteType = 'pte'; 
   }
+
+  const payByIso = document.getElementById('paymentDueDate')?.value || defaultPayByDateISO();
+  const taxPeriod = inferTaxYearForPayment({
+    paymentType: pteType,
+    quarter: '',
+    dueDate: '',
+    payByDate: payByIso
+  });
+
   stateObj.payments.push({
     type: pteType,
     dueDate: '',
     amount: '',
     description: '',
-    taxPeriod: '2025',
+    taxPeriod,
     method: 'electronic'
   });
   renderStatePayments(stateIdx);
@@ -3892,21 +4133,22 @@ function updateStatePayment(stateIdx, pmtIdx, field, value, shouldReRender = tru
 
   // 1) If the user changed the "type" field, run substring checks:
   if (field === 'type') {
-    const lower = value.toLowerCase();
-    if (lower.includes('extension')) {
-      // Example: user picks "Extension Payment (Form 3519)" => set defaults
+    const lower = String(value || '').toLowerCase();
+    const isEstimated = lower.includes('estimated');
+    if (!isEstimated) {
       payment.quarter = '';
-      payment.taxPeriod = '2025';
-    } else if (lower.includes('estimated')) {
-      // Example: user picks "Estimated Tax Payment (Form 540-ES)"
-      payment.taxPeriod = '2025';
-      // set quarter if you like, or do nothing
-    } else if (lower.includes('balance')) {
-      // If you need special logic for "balance" types
-      payment.quarter = '';
-      payment.taxPeriod = '2025';
     }
-    // else do nothing for other custom labels
+
+    const hasTaxYear = String(payment.taxPeriod || '').trim() !== '';
+    if (!hasTaxYear) {
+      const payByIso = document.getElementById('paymentDueDate')?.value || '';
+      payment.taxPeriod = inferTaxYearForPayment({
+        paymentType: value,
+        quarter: payment.quarter,
+        dueDate: payment.dueDate,
+        payByDate: payByIso
+      });
+    }
   }
 
   if (field === 'method') {
@@ -4100,6 +4342,8 @@ function regeneratePreviewHTML() {
   if (shouldOverwritePreview) {
     previewArea.innerHTML = generatedEmailHTML;
   }
+
+  updatePayByDateWarning();
 }
 
 function getDisplayedBusinessType(bizType) {
@@ -4114,6 +4358,7 @@ function getDisplayedBusinessType(bizType) {
 
 /** Pure builder: takes a data object and options, returns full email HTML */
 function buildEmailHTMLFromData(data, options = {}) {
+  const includePreviewHeader = options.includePreviewHeader !== false;
   const dateStr = escapeHTML(formatDueDateForSubject(data.paymentDueDate));
   const addressee = escapeHTML(data.addresseeName || '');
   const sender = escapeHTML(data.senderName || '');
@@ -4129,7 +4374,10 @@ function buildEmailHTMLFromData(data, options = {}) {
       ? options.includeDisclaimers
       : (data.showDisclaimers ?? true);
 
-  let html = `
+  let html = '';
+
+  if (includePreviewHeader) {
+    html += `
 <div class="email-header">
   <div class="email-header-field">
     <span class="email-header-label">From:</span>
@@ -4144,6 +4392,10 @@ function buildEmailHTMLFromData(data, options = {}) {
     <span>Tax Payment Instructions - Due ${dateStr || '[Date]'}</span>
   </div>
 </div>
+`;
+  }
+
+  html += `
 <div class="email-body">
   ${greeting}<br><br>
   Here are the electronic payment instructions.<br>`;
@@ -4216,7 +4468,8 @@ function buildEmailHTML() {
   return buildEmailHTMLFromData(formData, {
     greeting,
     personalNote,
-    includeDisclaimers: formData.showDisclaimers
+    includeDisclaimers: formData.showDisclaimers,
+    includePreviewHeader: true
   });
 }
 
@@ -4233,28 +4486,52 @@ function buildFederalPaymentSectionForData(p, data) {
   const taxYear = escapeHTML(p.taxPeriod || '[Tax Year]');
   const isBiz = (data.entityType === 'business');
 
-  let extForm = isBiz ? '7004' : '4868';
-  let estForm = isBiz ? '1120-W' : '1040-ES';
-  let balLabel = isBiz ? 'Balance Due (1120)' : 'Balance Due (1040)';
-
   let desc = '';
-  if (p.type === 'Extension') {
-    desc = `Extension Payment (Form ${extForm}) for tax year ${taxYear}.`;
-  } else if (p.type === 'Estimated') {
-    desc = `Estimated Tax Payment (Form ${estForm}) for tax year ${taxYear}`;
-    if (p.quarter) {
-      desc += ` (Quarter: ${escapeHTML(p.quarter)})`;
+  const type = String(p.type || '');
+  const typeLower = type.toLowerCase();
+  const isEstimated = typeLower.includes('estimated');
+  const isExtension = typeLower.includes('extension');
+  const isBalanceDue = typeLower.includes('balance');
+
+  if (!isBiz) {
+    const extForm = '4868';
+    const estForm = '1040-ES';
+    const balLabel = 'Balance Due (1040)';
+
+    if (type === 'Extension') {
+      desc = `Extension Payment (Form ${extForm}) for tax year ${taxYear}.`;
+    } else if (type === 'Estimated') {
+      desc = `Estimated Tax Payment (Form ${estForm}) for tax year ${taxYear}`;
+      if (p.quarter) {
+        desc += ` (Quarter: ${escapeHTML(p.quarter)})`;
+      }
+      desc += '.';
+    } else if (type === 'Balance Due') {
+      desc = `${balLabel} for tax year ${taxYear}.`;
+    } else {
+      desc = `Federal Payment: ${escapeHTML(type)} for tax year ${taxYear}.`;
     }
-    desc += '.';
-  } else if (p.type === 'Balance Due') {
-    desc = `${balLabel} for tax year ${taxYear}.`;
   } else {
-    desc = `Federal Payment: ${escapeHTML(p.type)} for tax year ${taxYear}.`;
+    if (isExtension) {
+      desc = `Federal Extension Payment for tax year ${taxYear}.`;
+    } else if (isEstimated) {
+      desc = `Federal Estimated Tax Payment for tax year ${taxYear}`;
+      if (p.quarter) {
+        desc += ` (Quarter: ${escapeHTML(p.quarter)})`;
+      }
+      desc += '.';
+    } else if (isBalanceDue) {
+      desc = `Federal Tax Return / Balance Due Payment for tax year ${taxYear}.`;
+    } else {
+      desc = `Federal Payment: ${escapeHTML(type)} for tax year ${taxYear}.`;
+    }
   }
 
   const amount = formatCurrency(p.amount);
   const notes = p.description ? plainTextToHtml(p.description) : '';
   const irsDirectPay = safeUrl('https://www.irs.gov/payments/direct-pay');
+  const irsPayments = safeUrl('https://www.irs.gov/payments');
+  const eftpsUrl = safeUrl('https://www.eftps.gov/eftps/');
 
   let html = `
 <div style="margin-bottom:20px;padding:15px;background:#eef6ff;border-radius:8px;border:1px solid #e2e8f0;">
@@ -4267,20 +4544,77 @@ function buildFederalPaymentSectionForData(p, data) {
 `;
 
   if (isBiz) {
-    const entityName = escapeHTML(data.entityName || '[Entity Name]');
-    const entityType = escapeHTML(getDisplayedBusinessType(data.businessType));
-    html += `
+    const bt = String(data.businessType || '').toLowerCase();
+    const returnForm = getBusinessReturnFormForDirectPay(data);
+    const hasReturnForm = Boolean(returnForm);
+    const directPaySupported = hasReturnForm && IRS_DIRECT_PAY_SUPPORTED_BUSINESS_FORMS.has(returnForm);
+    const method = normalizeFederalMethod(p.method) || recommendedBusinessFederalMethod(data);
+
+    let reason = '';
+    if (isExtension) reason = 'Extension';
+    else if (isEstimated) reason = 'Estimated Tax';
+    else if (isBalanceDue) reason = 'Tax Return / Notice';
+    else reason = 'Tax Return / Notice';
+
+    if (method === 'direct_pay') {
+      const llcNote = bt === 'llc'
+        ? `<div style="margin-top:10px;color:#475569;font-size:0.95em;"><em>Note:</em> LLC filing forms can vary. If your LLC files a different federal return, select that form in Direct Pay.</div>`
+        : '';
+
+      const supportNote = !directPaySupported
+        ? `<div style="margin-top:10px;color:#b45309;font-size:0.95em;"><strong>Heads up:</strong> If you don’t see your form/reason in Direct Pay, use another IRS payment method below.</div>`
+        : '';
+
+      html += `
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
     <strong>IRS Direct Pay Instructions (Business):</strong><br/>
-    1. Go to <a href="${irsDirectPay}" target="_blank" rel="noopener noreferrer">irs.gov/payments/direct-pay</a><br/>
-    2. Select the appropriate reason (Extension, Estimated, or Balance Due), then fill in:
+    1. Go to <a href="${irsDirectPay}" target="_blank" rel="noopener noreferrer">irs.gov/payments/direct-pay</a> and start a payment.<br/>
+    2. Choose <strong>Business</strong> (if prompted), then select:
        <ul style="margin:6px 0 0 20px;">
-         <li>Entity Name: ${entityName}</li>
-         <li>Entity Type: ${entityType}</li>
+         <li>Reason for Payment: ${escapeHTML(reason)}</li>
+         ${hasReturnForm ? `<li>Apply Payment To (Form): ${escapeHTML(returnForm)}</li>` : ''}
          <li>Tax Year: ${taxYear}</li>
          <li>Amount: ${amount}</li>
        </ul>
-    3. Follow the prompts to verify your identity and submit the payment.
+    3. Complete identity verification and submit the payment (have your EIN and prior-year info available if requested).
+    ${llcNote}
+    ${supportNote}
+  </div>
+`;
+      if (!directPaySupported) {
+        const paymentsLink = irsPayments
+          ? `<a href="${irsPayments}" target="_blank" rel="noopener noreferrer">irs.gov/payments</a>`
+          : 'irs.gov/payments';
+        const eftpsLink = eftpsUrl
+          ? `<a href="${eftpsUrl}" target="_blank" rel="noopener noreferrer">eftps.gov</a>`
+          : 'eftps.gov';
+
+        html += `
+  <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #e2e8f0;">
+    <strong>Other IRS payment options (Business):</strong><br/>
+    If Direct Pay doesn’t show the option you need, use another IRS method (often EFTPS for businesses).<br/>
+    1. See IRS options at ${paymentsLink}<br/>
+    2. If using EFTPS, go to ${eftpsLink} and follow the prompts for your form/tax year.
+  </div>
+`;
+      }
+      html += `</div>`;
+      return html;
+    }
+
+    const paymentsLink = irsPayments
+      ? `<a href="${irsPayments}" target="_blank" rel="noopener noreferrer">irs.gov/payments</a>`
+      : 'irs.gov/payments';
+    const eftpsLink = eftpsUrl
+      ? `<a href="${eftpsUrl}" target="_blank" rel="noopener noreferrer">eftps.gov</a>`
+      : 'eftps.gov';
+
+    html += `
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+    <strong>IRS payment options (Business):</strong><br/>
+    If IRS Direct Pay doesn’t show your form/reason (or if you prefer a different method), use another IRS option (often EFTPS for businesses).<br/>
+    1. See IRS options at ${paymentsLink}<br/>
+    2. If using EFTPS, go to ${eftpsLink} and follow the prompts for your form/tax year.
   </div>
 </div>
 `;
@@ -4604,11 +4938,24 @@ function triggerEmlDownload(filename, emlContent) {
   document.body.removeChild(a);
 }
 
+function stripEmailPreviewHeader(html) {
+  const raw = String(html ?? '');
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(raw, 'text/html');
+    doc.querySelectorAll('.email-header').forEach(n => n.remove());
+    return doc.body ? doc.body.innerHTML : raw;
+  } catch {
+    return raw;
+  }
+}
+
 function downloadEmlFile() {
   upsertActiveClientFromForm();
 
   const previewArea = document.getElementById('previewArea');
   const finalHTML = previewArea ? previewArea.innerHTML : generatedEmailHTML || '';
+  const exportHTML = stripEmailPreviewHeader(finalHTML);
   const subjectDate = formatDueDateForSubject(formData.paymentDueDate);
   const subject = `Tax Payment Instructions - Due ${subjectDate || ''}`;
 
@@ -4616,7 +4963,7 @@ function downloadEmlFile() {
     subject,
     from: '',
     to: '',
-    htmlBody: finalHTML
+    htmlBody: exportHTML
   });
 
   triggerEmlDownload('TaxPaymentInstructions.eml', emlContent);

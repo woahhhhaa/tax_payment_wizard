@@ -1,5 +1,6 @@
 import express from "express";
 import OpenAI from "openai";
+import path from "path";
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -8,7 +9,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // Serve this folder so you can open:
 // http://localhost:3000/tax_payment_wizard_new.html
-app.use(express.static(process.cwd()));
+app.use(express.static(path.join(process.cwd(), "public")));
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
