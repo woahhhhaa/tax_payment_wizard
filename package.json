@@ -1,0 +1,11 @@
+{
+  "name": "tax-payment-wizard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "openai": "^4.0.0"
+  }
+}
