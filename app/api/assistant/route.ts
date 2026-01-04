@@ -310,8 +310,14 @@ Return ONLY JSON that matches the schema.
 `.trim();
 
     const input = [
-      { role: "system", content: system },
-      { role: "user", content: JSON.stringify({ message, context }) }
+      {
+        role: "system",
+        content: [{ type: "input_text", text: system }]
+      },
+      {
+        role: "user",
+        content: [{ type: "input_text", text: JSON.stringify({ message, context }) }]
+      }
     ];
 
     const resp = await client.responses.create({
