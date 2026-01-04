@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { NextResponse } from "next/server";
 
 function getApiKey() {
   return (
@@ -13,7 +14,6 @@ function getModel() {
   return (process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
 }
 
-// JSON Schema the model must output
 const ACTION_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -25,8 +25,6 @@ const ACTION_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        // OpenAI strict JSON Schema requires every key in `properties`
-        // to be present in `required`. Optional fields should be nullable.
         required: [
           "type",
           "client_id",
@@ -48,7 +46,7 @@ const ACTION_SCHEMA = {
           "tax_year",
           "notes",
           "state",
-          "method",
+          "method"
         ],
         properties: {
           type: {
@@ -58,137 +56,130 @@ const ACTION_SCHEMA = {
               "select_client",
               "set_basic_info",
               "add_federal_payment",
-              "add_state_payment",
-            ],
+              "add_state_payment"
+            ]
           },
-
           client_id: { type: ["string", "null"] },
           client_name: { type: ["string", "null"] },
-
           addressee_name: { type: ["string", "null"] },
           sender_name: { type: ["string", "null"] },
           pay_by_date: { type: ["string", "null"] },
           show_due_date_reminder: { type: ["boolean", "null"] },
           show_disclaimers: { type: ["boolean", "null"] },
-
           entity_type: {
             type: ["string", "null"],
-            enum: ["individual", "business", null],
+            enum: ["individual", "business", null]
           },
           business_type: {
             type: ["string", "null"],
-            enum: ["ccorp", "scorp", "partnership", "llc", null],
+            enum: ["ccorp", "scorp", "partnership", "llc", null]
           },
           entity_name: { type: ["string", "null"] },
           entity_id: { type: ["string", "null"] },
           ca_corp_form: { type: ["string", "null"] },
-
-          // payment
           payment_type: { type: ["string", "null"] },
           quarter: { type: ["string", "null"] },
           due_date: { type: ["string", "null"] },
           amount: { type: ["string", "number", "null"] },
           tax_year: { type: ["string", "null"] },
           notes: { type: ["string", "null"] },
-
-          // state payment only
           state: { type: ["string", "null"] },
           method: {
             type: ["string", "null"],
-            enum: ["electronic", "mail", null],
-          },
-        },
-      },
-    },
-  },
+            enum: ["electronic", "mail", null]
+          }
+        }
+      }
+    }
+  }
 };
 
-function extractJsonText(resp) {
+function extractJsonText(resp: {
+  output_text?: string;
+  output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+}) {
   if (resp && typeof resp.output_text === "string" && resp.output_text.trim()) {
     return resp.output_text.trim();
   }
   const out = Array.isArray(resp?.output) ? resp.output : [];
   for (const item of out) {
     const content = Array.isArray(item?.content) ? item.content : [];
-    for (const c of content) {
+    for (const chunk of content) {
       if (
-        c?.type === "output_text" &&
-        typeof c?.text === "string" &&
-        c.text.trim()
+        chunk?.type === "output_text" &&
+        typeof chunk?.text === "string" &&
+        chunk.text.trim()
       ) {
-        return c.text.trim();
+        return chunk.text.trim();
       }
     }
   }
   return "";
 }
 
-function hasNonEmptyText(value) {
+function hasNonEmptyText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function hasAmount(value) {
+function hasAmount(value: unknown) {
   if (value === null || value === undefined) return false;
   if (typeof value === "number") return Number.isFinite(value);
   return String(value).trim().length > 0;
 }
 
-function isEstimatedType(paymentType) {
+function isEstimatedType(paymentType: unknown) {
   return String(paymentType || "").toLowerCase().includes("estimated");
 }
 
-function enforceAssistantRequirements(plan) {
-  const input = plan && typeof plan === "object" ? plan : {};
+function enforceAssistantRequirements(plan: unknown) {
+  const input = plan && typeof plan === "object" ? (plan as Record<string, any>) : {};
   const actions = Array.isArray(input.actions) ? input.actions : [];
 
   const kept = [];
   const issues = [];
 
-  for (const a of actions) {
-    const type = String(a?.type || "");
+  for (const action of actions) {
+    const type = String(action?.type || "");
 
     if (type === "add_federal_payment") {
       const missing = [];
-      if (!hasNonEmptyText(a?.payment_type)) missing.push("payment type");
-      if (!hasAmount(a?.amount)) missing.push("amount");
-      if (!hasNonEmptyText(a?.due_date)) missing.push("due date");
-      if (isEstimatedType(a?.payment_type) && !hasNonEmptyText(a?.quarter)) {
+      if (!hasNonEmptyText(action?.payment_type)) missing.push("payment type");
+      if (!hasAmount(action?.amount)) missing.push("amount");
+      if (!hasNonEmptyText(action?.due_date)) missing.push("due date");
+      if (isEstimatedType(action?.payment_type) && !hasNonEmptyText(action?.quarter)) {
         missing.push("quarter (Q1–Q4)");
       }
 
       if (missing.length) {
-        issues.push(
-          `Federal payment is missing: ${missing.join(", ")}.`
-        );
+        issues.push(`Federal payment is missing: ${missing.join(", ")}.`);
         continue;
       }
-      kept.push(a);
+      kept.push(action);
       continue;
     }
 
     if (type === "add_state_payment") {
       const missing = [];
-      if (!hasNonEmptyText(a?.state)) missing.push("state");
-      if (!hasNonEmptyText(a?.payment_type)) missing.push("payment type");
-      if (!hasAmount(a?.amount)) missing.push("amount");
-      if (!hasNonEmptyText(a?.due_date)) missing.push("due date");
-      if (isEstimatedType(a?.payment_type) && !hasNonEmptyText(a?.quarter)) {
+      if (!hasNonEmptyText(action?.state)) missing.push("state");
+      if (!hasNonEmptyText(action?.payment_type)) missing.push("payment type");
+      if (!hasAmount(action?.amount)) missing.push("amount");
+      if (!hasNonEmptyText(action?.due_date)) missing.push("due date");
+      if (isEstimatedType(action?.payment_type) && !hasNonEmptyText(action?.quarter)) {
         missing.push("quarter (Q1–Q4)");
       }
 
       if (missing.length) {
-        const label = hasNonEmptyText(a?.state)
-          ? `${String(a.state).trim()} state payment`
+        const label = hasNonEmptyText(action?.state)
+          ? `${String(action.state).trim()} state payment`
           : "State payment";
         issues.push(`${label} is missing: ${missing.join(", ")}.`);
         continue;
       }
-      kept.push(a);
+      kept.push(action);
       continue;
     }
 
-    // Non-payment actions are always allowed.
-    kept.push(a);
+    kept.push(action);
   }
 
   let assistantMessage = hasNonEmptyText(input.assistant_message)
@@ -200,7 +191,7 @@ function enforceAssistantRequirements(plan) {
       assistantMessage ? assistantMessage.trim() : "I need a bit more info before I can add those payment(s).",
       "",
       "Missing required details:",
-      ...issues.map((t) => `- ${t}`),
+      ...issues.map((text) => `- ${text}`),
       "",
       'Example reply: "Federal Estimated Q1 $5000 due 06/15/2026"'
     ].filter(Boolean);
@@ -209,52 +200,44 @@ function enforceAssistantRequirements(plan) {
 
   return {
     assistant_message: assistantMessage,
-    actions: kept,
+    actions: kept
   };
 }
 
-export default async function handler(req, res) {
-  res.setHeader("Cache-Control", "no-store");
+export async function GET() {
+  const hasKey = Boolean(getApiKey());
+  return NextResponse.json({
+    ok: true,
+    has_openai_key: hasKey,
+    model: getModel(),
+    message: "POST JSON { message, context } to this endpoint to use the assistant."
+  });
+}
 
-  if (req.method === "GET") {
-    const hasKey = Boolean(getApiKey());
-    res.status(200).json({
-      ok: true,
-      has_openai_key: hasKey,
-      model: getModel(),
-      message:
-        "POST JSON { message, context } to this endpoint to use the assistant.",
-    });
-    return;
-  }
-
-  if (req.method !== "POST") {
-    res
-      .status(405)
-      .json({ assistant_message: "Method not allowed", actions: [] });
-    return;
-  }
-
+export async function POST(request: Request) {
   try {
     const apiKey = getApiKey();
     if (!apiKey) {
-      res.status(500).json({
-        assistant_message:
-          "Server is missing OPENAI_API_KEY. Set it in Vercel Project Settings → Environment Variables, then redeploy.",
-        actions: [],
-      });
-      return;
+      return NextResponse.json(
+        {
+          assistant_message:
+            "Server is missing OPENAI_API_KEY. Set it in Vercel Project Settings → Environment Variables, then redeploy.",
+          actions: []
+        },
+        { status: 500 }
+      );
     }
 
     const client = new OpenAI({ apiKey });
-    const { message, context } = req.body || {};
-    const userMessage = typeof message === "string" ? message.trim() : "";
-    if (!userMessage) {
-      res.status(400).json({
-        assistant_message: "Missing 'message' in request body.",
-        actions: [],
-      });
-      return;
+    const body = await request.json().catch(() => ({}));
+    const message = typeof body?.message === "string" ? body.message.trim() : "";
+    const context = body?.context ?? {};
+
+    if (!message) {
+      return NextResponse.json(
+        { assistant_message: "Missing 'message' in request body.", actions: [] },
+        { status: 400 }
+      );
     }
 
     const system = `
@@ -328,7 +311,7 @@ Return ONLY JSON that matches the schema.
 
     const input = [
       { role: "system", content: system },
-      { role: "user", content: JSON.stringify({ message: userMessage, context }) },
+      { role: "user", content: JSON.stringify({ message, context }) }
     ];
 
     const resp = await client.responses.create({
@@ -339,25 +322,23 @@ Return ONLY JSON that matches the schema.
           type: "json_schema",
           name: "wizard_actions",
           strict: true,
-          schema: ACTION_SCHEMA,
-        },
-      },
+          schema: ACTION_SCHEMA
+        }
+      }
     });
 
     const jsonText = extractJsonText(resp);
     if (!jsonText) {
-      res.status(500).json({
-        assistant_message: "No structured output returned from the model.",
-        actions: [],
-      });
-      return;
+      return NextResponse.json(
+        { assistant_message: "No structured output returned from the model.", actions: [] },
+        { status: 500 }
+      );
     }
 
     const parsed = JSON.parse(jsonText);
     const plan = enforceAssistantRequirements(parsed);
-
-    res.status(200).json(plan);
-  } catch (err) {
+    return NextResponse.json(plan);
+  } catch (err: any) {
     console.error(err);
     const status = err?.status || err?.response?.status;
     const message =
@@ -366,9 +347,14 @@ Return ONLY JSON that matches the schema.
       err?.error?.message ||
       "Unknown error";
 
-    res.status(500).json({
-      assistant_message: `Server error calling OpenAI${status ? ` (status ${status})` : ""}: ${message}`,
-      actions: [],
-    });
+    return NextResponse.json(
+      {
+        assistant_message: `Server error calling OpenAI${
+          status ? ` (status ${status})` : ""
+        }: ${message}`,
+        actions: []
+      },
+      { status: 500 }
+    );
   }
 }
