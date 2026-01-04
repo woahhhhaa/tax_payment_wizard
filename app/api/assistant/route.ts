@@ -94,16 +94,18 @@ const ACTION_SCHEMA = {
   }
 };
 
-function extractJsonText(resp: {
-  output_text?: string;
-  output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
-}) {
-  if (resp && typeof resp.output_text === "string" && resp.output_text.trim()) {
-    return resp.output_text.trim();
+function extractJsonText(resp: unknown) {
+  if (!resp || typeof resp !== "object") return "";
+  const maybeText = (resp as { output_text?: unknown }).output_text;
+  if (typeof maybeText === "string" && maybeText.trim()) {
+    return maybeText.trim();
   }
-  const out = Array.isArray(resp?.output) ? resp.output : [];
-  for (const item of out) {
-    const content = Array.isArray(item?.content) ? item.content : [];
+  const out = (resp as { output?: unknown }).output;
+  const outputItems = Array.isArray(out) ? out : [];
+  for (const item of outputItems) {
+    const content = Array.isArray((item as { content?: unknown })?.content)
+      ? (item as { content?: Array<{ type?: unknown; text?: unknown }> }).content
+      : [];
     for (const chunk of content) {
       if (
         chunk?.type === "output_text" &&
