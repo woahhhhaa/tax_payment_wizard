@@ -104,7 +104,8 @@ function extractJsonText(resp: unknown) {
   const outputItems = Array.isArray(out) ? out : [];
   for (const item of outputItems) {
     const content = Array.isArray((item as { content?: unknown })?.content)
-      ? (item as { content?: Array<{ type?: unknown; text?: unknown }> }).content
+      ? (item as { content?: Array<{ type?: unknown; text?: unknown }> })
+          .content ?? []
       : [];
     for (const chunk of content) {
       if (
