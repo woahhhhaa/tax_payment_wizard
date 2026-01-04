@@ -728,6 +728,25 @@
     .info-tooltip:hover {
       background: #cbd5e0;
     }
+    .save-status {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .save-status[data-state="saving"] {
+      border-color: #bae6fd;
+      background: #e0f2fe;
+      color: #0f172a;
+    }
+    .save-status[data-state="error"] {
+      border-color: #fecaca;
+      background: #fee2e2;
+      color: #b91c1c;
+    }
   </style>
 </head>
 <body>
@@ -762,6 +781,7 @@
 	        >
 	          Report a Bug
 	        </button>
+          <span id="saveStatus" class="save-status" data-state="idle">Saved</span>
 
 	        <input id="importCsvInput" type="file" accept=".csv,.xlsx,.xls" class="hidden" onchange="importCsvFile(event)">
 	        <input id="importJsonInput" type="file" accept=".json" class="hidden" onchange="importSessionJsonFile(event)">
@@ -2000,11 +2020,13 @@ let formData = {
   showDisclaimers: true
 };
 
-const SESSION_STORAGE_KEY = 'tpw.session.v1';
-
 // { version, id, name, createdAt, updatedAt, clients: [{ clientId, data }] }
 let session = null;
 let activeClientId = null;
+let currentBatchId = null;
+let saveTimer = null;
+let saveInFlight = false;
+let pendingSave = false;
 
 /** Map two-letter abbreviations to full state names used in statesData */
 const STATE_ABBREVIATIONS = {
@@ -2204,17 +2226,21 @@ function validateStep(stepNumber) {
   return isValid;
 }
 
-function loadSessionFromStorage() {
-  const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-  if (raw) {
-    try { session = JSON.parse(raw); } catch { session = null; }
-  }
-  if (!session || typeof session !== 'object') {
-    session = null;
+function setSaveIndicator(text, state = 'idle') {
+  const el = document.getElementById('saveStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.setAttribute('data-state', state);
+}
+
+function normalizeSessionData(raw) {
+  let data = raw;
+  if (!data || typeof data !== 'object') {
+    data = null;
   }
 
-  if (!session) {
-    session = {
+  if (!data) {
+    data = {
       version: 1,
       id: (crypto?.randomUUID?.() || `sess_${Date.now()}`),
       name: 'Untitled Session',
@@ -2224,37 +2250,120 @@ function loadSessionFromStorage() {
     };
   }
 
-  if (!Array.isArray(session.clients)) session.clients = [];
-  session.clients = session.clients
+  if (!Array.isArray(data.clients)) data.clients = [];
+  data.clients = data.clients
     .map(c => ({
       clientId: String(c?.clientId || '').trim(),
       data: normalizeFormDataLike(c?.data)
     }))
     .filter(c => c.clientId);
 
+  return data;
+}
+
+async function ensureAuthenticated() {
+  const resp = await fetch('/api/me');
+  if (resp.status === 401) {
+    window.location.href = '/login?next=/wizard';
+    return false;
+  }
+  return resp.ok;
+}
+
+async function loadSessionFromServer() {
+  setSaveIndicator('Loading...', 'saving');
+  const resp = await fetch('/api/batches/current');
+  if (resp.status === 401) {
+    window.location.href = '/login?next=/wizard';
+    return;
+  }
+  const data = await resp.json().catch(() => ({}));
+  currentBatchId = data?.batchId || null;
+  session = normalizeSessionData(data?.snapshot);
+
   const nameInput = document.getElementById('sessionNameInput');
   if (nameInput) {
     nameInput.value = session.name || '';
   }
+  setSaveIndicator('Saved', 'idle');
+}
+
+async function persistSessionToServer() {
+  if (!session) return;
+  if (saveInFlight) {
+    pendingSave = true;
+    return;
+  }
+  saveInFlight = true;
+  setSaveIndicator('Saving...', 'saving');
+
+  try {
+    const resp = await fetch('/api/batches/current', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchId: currentBatchId,
+        snapshot: session
+      })
+    });
+    if (!resp.ok) {
+      throw new Error(`Save failed (${resp.status})`);
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (data?.batchId) currentBatchId = data.batchId;
+    setSaveIndicator('Saved', 'idle');
+  } catch (e) {
+    console.error(e);
+    setSaveIndicator('Save error', 'error');
+  } finally {
+    saveInFlight = false;
+    if (pendingSave) {
+      pendingSave = false;
+      queueAutosave();
+    }
+  }
+}
+
+function queueAutosave() {
+  if (!session) return;
+  setSaveIndicator('Saving...', 'saving');
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    persistSessionToServer();
+  }, 1200);
 }
 
 function saveSessionToStorage() {
   if (!session) return;
   session.name = (document.getElementById('sessionNameInput')?.value || '').trim() || 'Untitled Session';
   session.updatedAt = new Date().toISOString();
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  queueAutosave();
 }
 
-function newSession() {
+async function newSession() {
   if (!confirm('Start a new session? This will replace the current session in the browser (you can Save JSON first).')) return;
-  localStorage.removeItem(SESSION_STORAGE_KEY);
-  session = null;
-  activeClientId = null;
   clearAssistantConversation();
-  loadSessionFromStorage();
-  session.clients = [];
-  activeClientId = null;
-  createNewClient();
+  setSaveIndicator('Creating...', 'saving');
+  try {
+    const resp = await fetch('/api/batches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!resp.ok) {
+      throw new Error(`Create failed (${resp.status})`);
+    }
+    const data = await resp.json().catch(() => ({}));
+    currentBatchId = data?.batchId || null;
+    session = normalizeSessionData(data?.snapshot);
+    session.clients = [];
+    activeClientId = null;
+    createNewClient();
+    setSaveIndicator('Saved', 'idle');
+  } catch (e) {
+    console.error(e);
+    setSaveIndicator('Save error', 'error');
+  }
 }
 
 function snapshotFormData() {
@@ -4995,6 +5104,12 @@ function reportBug() {
  * 10) PAGE INIT
  *****************************************************************************/
 document.addEventListener('DOMContentLoaded', function() {
+  initWizard().catch(err => {
+    console.error(err);
+  });
+});
+
+async function initWizard() {
   // Populate the state dropdown
   const sel = document.getElementById('addStateSelector');
   Object.keys(statesData).sort().forEach(st => {
@@ -5005,7 +5120,10 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   attachAutoPreviewListeners();
-  loadSessionFromStorage();
+
+  const authed = await ensureAuthenticated();
+  if (!authed) return;
+  await loadSessionFromServer();
 
   const nameInput = document.getElementById('sessionNameInput');
   if (nameInput) {
@@ -5030,7 +5148,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   renderSessionUI();
-});
+}
 
 function updateReviewStep() {
   document.getElementById('review-addressee').textContent = formData.addresseeName || '(Not set)';
@@ -5141,7 +5259,7 @@ The wizard runs inside a **Session** that can contain multiple clients:
 The “AI Assistant” panel can turn plain-English commands into session/client edits (creates/selects clients, fills fields, adds payments).
 
 - The browser calls a backend endpoint at `/api/assistant` (so your API key is never in the HTML).
-- To enable it locally, run `node server.mjs` with `OPENAI_API_KEY` set, then open the wizard at `http://localhost:3000/tax_payment_wizard_new.html`.
+- To enable it locally, run `npm run dev` with `OPENAI_API_KEY` set, then open the wizard at `http://localhost:3000/wizard`.
 
 ### Multi-Step Wizard
 
@@ -5361,8 +5479,8 @@ There is also a `statesData` object that contains per-state metadata: form names
 ## Developer Notes
 
 - **Session persistence (LocalStorage)**:
-  - The current session is stored in `localStorage` under the key `tpw.session.v1`.
-  - Use “Save JSON” / “Load JSON” to export/import the full session (clients + payments).
+- The current session is saved to the server via `/api/batches/current` for the logged-in user.
+- Use “Save JSON” / “Load JSON” to export/import the full session (clients + payments).
   - Use “Export CSV” / “Import CSV” for a flat, one-row-per-payment format (grouped by `ClientId`).
 
 - **Validation**:
@@ -5380,7 +5498,7 @@ There is also a `statesData` object that contains per-state metadata: form names
 
 - **AI Assistant**:
   - The front-end posts to `/api/assistant` and applies the returned `actions[]` plan to your session and active client.
-  - Run `server.mjs` to provide the backend (keeps your OpenAI API key off the client).
+  - Use the Next.js server with `OPENAI_API_KEY` set (keeps your OpenAI API key off the client).
 
 - **Bug Reporting button**:
   - “Report a Bug” in the header triggers `mailto:kyle@milnertaxco.com` with a pre-filled subject and body.
@@ -5390,8 +5508,8 @@ There is also a `statesData` object that contains per-state metadata: form names
 ## Known Limitations / Future Ideas
 
 - State data for some jurisdictions is summarized and may need ongoing maintenance as laws or portals change.
-- No server-side component; everything is in-browser.
-- No authentication or user management; designed as an internal tool for the preparer.
+- Server-backed persistence with authenticated access.
+- Credentials-based authentication for local use (upgradeable to OAuth).
 - Potential future enhancements:
   - Integrate with a practice management system or CRM via API.
   - Read client details from a JSON file or API (so you don’t retype names/entity info).
@@ -5400,146 +5518,7 @@ There is also a `statesData` object that contains per-state metadata: form names
 
 ---
 
-LICENSE (Milner Tax Payment Wizard Source-Available License v1.0)
-Copyright (c) 2025, Kyle Milner. All rights reserved.
-
-1. Definitions
-
-"Software" means the Tax Payment Wizard HTML/CSS/JavaScript code and all
-associated text, state data, and documentation authored by Kyle Milner.
-
-"You" means the individual or legal entity exercising permissions under
-this license.
-
-"Non-Commercial Use" means use of the Software solely for your personal
-or internal business purposes, and not for sale, sublicense, hosting as
-a paid service, or any other activity where you or a third party receives
-direct or indirect monetary compensation specifically for the Software
-or any derivative work based substantially on it.
-
-"Derivative Work" means any work that is based on or incorporates the
-Software or any portion of it, including modifications, translations,
-adaptations, or combinations with other material.
-
-2. Grant of Rights (Non-Commercial Only)
-
-Subject to the terms of this license, the copyright holder grants you a
-limited, non-exclusive, non-transferable, non-sublicensable license to:
-
-  a) Use, run, and display the Software for Non-Commercial Use.
-
-  b) Modify the Software to create Derivative Works for your own
-     Non-Commercial Use.
-
-3. Restrictions
-
-You MAY NOT, without prior written permission from the copyright holder:
-
-  a) Sell, license, rent, lease, or otherwise commercially exploit the
-     Software or any Derivative Work.
-
-  b) Offer the Software or any Derivative Work as a paid or monetized
-     product or service (including but not limited to SaaS, templates,
-     or add-ons) whether directly or through a marketplace.
-
-  c) Repackage or redistribute the Software or any Derivative Work in a
-     way that competes with, substitutes for, or impersonates a product
-     or service offered by the copyright holder.
-
-  d) Remove or alter any copyright, attribution, or license notices
-     contained in the Software.
-
-Any use of the Software or Derivative Works outside of Non-Commercial
-Use is strictly prohibited unless covered by a separate written
-agreement signed by the copyright holder.
-
-4. Derivative Works
-
-You may create Derivative Works for your own Non-Commercial Use only.
-All Derivative Works remain subject to this license. You must ensure
-that any recipient of a Derivative Work receives a copy of this
-license and is bound by the same terms.
-
-You obtain no ownership interest in the underlying Software by creating
-a Derivative Work.
-
-5. Commercial Use Requires Separate Agreement
-
-If you wish to:
-
-  - Sell, resell, license, or otherwise commercialize the Software or
-    any Derivative Work, or
-  - Use the Software or any Derivative Work as part of a paid SaaS,
-    template, app, or other monetized product or service,
-
-you must first obtain a separate written agreement from the copyright
-holder (for example, a commercial license, revenue share agreement, or
-equity/royalty arrangement).
-
-Without such a written agreement, any commercial use is unauthorized
-and constitutes both a breach of this license and a violation of
-copyright law.
-
-6. Enforcement and Remedies
-
-If you use the Software or any Derivative Work in violation of this
-license:
-
-  - Your license automatically terminates, and
-  - Any continued use is unauthorized and may be treated as willful
-    copyright infringement.
-
-The copyright holder reserves all rights and remedies available under
-applicable law, including but not limited to:
-
-  - Injunctive relief to stop unauthorized use,
-  - Monetary damages (including, where applicable, recovery of profits
-    attributable to the infringement),
-  - Attorneys’ fees and costs where permitted, and
-  - Negotiation or litigation of additional equitable remedies.
-
-Nothing in this license limits the copyright holder’s ability to seek
-a financial or equitable resolution (for example, profit sharing,
-royalties, or other negotiated consideration) in connection with an
-unauthorized commercial use.
-
-7. Attribution
-
-If you publicly show, write about, or share the Software or any
-Derivative Work (for example in demos, screenshots, blog posts, or
-presentations), you must give reasonable attribution such as:
-
-  "Based on the Tax Payment Wizard by Kyle Milner (milnertaxco.com)."
-
-8. No Warranty
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES,
-OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
-OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR
-THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-9. Limitation of Liability
-
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT
-BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
-PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUE, ARISING OUT OF OR
-RELATING TO THIS LICENSE OR THE USE OF THE SOFTWARE, EVEN IF ADVISED
-OF THE POSSIBILITY OF SUCH DAMAGES.
-
-10. Governing Law
-
-This license and any dispute arising out of or relating to it shall be
-governed by the laws of the State of California, without regard to its
-conflict of laws principles.
-
-11. Acceptance
-
-By downloading, using, modifying, or distributing the Software, you
-acknowledge that you have read, understood, and agreed to be bound
-by the terms of this license.
+© 2026 Kyle Milner. All rights reserved.
 -->
 </body>
 </html>
