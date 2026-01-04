@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: taxwizard
+      POSTGRES_PASSWORD: taxwizard
+      POSTGRES_DB: taxwizard
+    volumes:
+      - taxwizard_data:/var/lib/postgresql/data
+
+volumes:
+  taxwizard_data:
