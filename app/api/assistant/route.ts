@@ -309,20 +309,10 @@ When details are missing:
 Return ONLY JSON that matches the schema.
 `.trim();
 
-    const input = [
-      {
-        role: "system",
-        content: [{ type: "input_text", text: system }]
-      },
-      {
-        role: "user",
-        content: [{ type: "input_text", text: JSON.stringify({ message, context }) }]
-      }
-    ];
-
     const resp = await client.responses.create({
       model: getModel(),
-      input,
+      instructions: system,
+      input: JSON.stringify({ message, context }),
       text: {
         format: {
           type: "json_schema",
