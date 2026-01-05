@@ -1,8 +1,13 @@
 import { randomUUID } from "crypto";
 
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
+export type JsonObject = { [key: string]: JsonValue };
+export type JsonArray = JsonValue[];
+
 export type WizardClient = {
   clientId: string;
-  data: Record<string, unknown>;
+  data: JsonObject;
 };
 
 export type WizardSession = {
@@ -51,8 +56,8 @@ export function normalizeSession(input: unknown): WizardSession {
           .map((client) => ({
             clientId: String(client?.clientId || "").trim(),
             data:
-              client && typeof client === "object" && client.data
-                ? (client.data as Record<string, unknown>)
+              client && typeof client === "object" && client.data && !Array.isArray(client.data)
+                ? (client.data as JsonObject)
                 : {}
           }))
           .filter((client) => client.clientId)
