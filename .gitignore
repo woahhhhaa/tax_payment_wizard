@@ -4,3 +4,8 @@ out/
 .DS_Store
 .vercel/
 package-lock.json
+
+# env files (keep example committed)
+.env
+.env.*
+!.env.example
