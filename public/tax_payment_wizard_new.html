@@ -4,12 +4,27 @@
   <meta charset="UTF-8" />
   <title>Tax Payment Wizard (Merged Version)</title>
   <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --fg: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --success-hover: #059669;
+      --shadow: 0 1px 1px rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.1);
+    }
+
     body {
-      font-family: Arial, sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
+        Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       margin: 20px auto;
       max-width: 100%;
       padding: 0 10px;
-      background: #f5f5f5;
+      background: var(--bg);
+      color: var(--fg);
     }
     .container {
       display: grid;
@@ -41,18 +56,19 @@
       min-width: 0;
       padding: 24px;
       position: relative;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
     }
     /* Sidebar preview */
     aside.preview-container {
       min-width: 0;
       padding: 32px;
-      background: #ffffff;
-      border-radius: 12px;
-      border: none;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      background: var(--card);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
       position: sticky;
       top: 24px;
       height: fit-content;
@@ -66,10 +82,11 @@
       padding: 0;
       list-style: none;
       counter-reset: step;
-      background: #fff;
-      border-radius: 8px;
+      background: var(--card);
+      border-radius: 14px;
       padding: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03), 0 8px 24px rgba(15, 23, 42, 0.08);
     }
     .step-progress li {
       flex: 1;
@@ -178,19 +195,23 @@
     }
     button {
       padding: 12px 24px;
-      border: none;
-      border-radius: 6px;
+      border: 1px solid transparent;
+      border-radius: 10px;
       cursor: pointer;
       font-weight: 500;
       font-size: 14px;
       line-height: 1.5;
       transition: all 0.2s ease;
-      background: #3b82f6;
+      background: var(--accent);
       color: white;
     }
     button:hover {
-      background: #2563eb;
+      background: var(--accent-hover);
       transform: translateY(-1px);
+    }
+    button:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
     }
     button[type="button"] {
       background: #64748b;
@@ -199,29 +220,29 @@
       background: #475569;
     }
     .primary-button {
-      background: #10b981;
+      background: var(--success);
       font-size: 16px;
       padding: 14px 28px;
       font-weight: 600;
     }
     .primary-button:hover {
-      background: #059669;
+      background: var(--success-hover);
     }
     /* Fieldset styling */
     fieldset {
-      border: 1px solid #ddd;
+      border: 1px solid var(--border);
       padding: 24px;
       margin-bottom: 24px;
-      border-radius: 8px;
-      background: white;
+      border-radius: 14px;
+      background: var(--card);
     }
     legend {
       font-size: 1.2em;
       font-weight: 600;
-      background: #007bff;
+      background: var(--accent);
       color: white;
       padding: 8px 16px;
-      border-radius: 4px;
+      border-radius: 10px;
       display: inline-block;
       margin-bottom: 15px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -230,7 +251,7 @@
     }
     /* ... rest of your existing CSS ... */
     legend:hover {
-      background: #0056b3;
+      background: var(--accent-hover);
     }
     /* Form fields */
     .form-field {
@@ -241,7 +262,7 @@
       display: block;
       margin-bottom: 4px;
       font-weight: 600;
-      color: #333;
+      color: var(--fg);
     }
     .form-field input[type="text"],
     .form-field input[type="date"],
@@ -250,18 +271,20 @@
     .form-field textarea {
       width: 100%;
       padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
       box-sizing: border-box;
       font-size: 14px;
       line-height: 1.5;
+      background: #ffffff;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
     }
     .form-field input:focus,
     .form-field select:focus,
     .form-field textarea:focus {
-      border-color: #007bff;
+      border-color: var(--accent);
       outline: none;
-      box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
     }
     .form-field.error input,
     .form-field.error select {
@@ -773,6 +796,7 @@
 	        <button type="button" onclick="exportSessionCsv()">Export CSV</button>
 	        <button type="button" onclick="triggerImportCsv()">Import CSV</button>
 	        <button type="button" onclick="generateSessionDrafts()">Download Draft Emails (.zip)</button>
+	        <button type="button" onclick="generateChecklistLink()">Generate Checklist Link</button>
 	        <button
 	          type="button"
 	          onclick="reportBug()"
@@ -2027,6 +2051,7 @@ let currentBatchId = null;
 let saveTimer = null;
 let saveInFlight = false;
 let pendingSave = false;
+let portalUrlsByClientId = {};
 
 /** Map two-letter abbreviations to full state names used in statesData */
 const STATE_ABBREVIATIONS = {
@@ -2280,6 +2305,7 @@ async function loadSessionFromServer() {
   const data = await resp.json().catch(() => ({}));
   currentBatchId = data?.batchId || null;
   session = normalizeSessionData(data?.snapshot);
+  portalUrlsByClientId = {};
 
   const nameInput = document.getElementById('sessionNameInput');
   if (nameInput) {
@@ -2340,6 +2366,28 @@ function saveSessionToStorage() {
   queueAutosave();
 }
 
+function waitForSaveCompletion() {
+  return new Promise(resolve => {
+    const timer = setInterval(() => {
+      if (!saveInFlight && !pendingSave) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 100);
+  });
+}
+
+async function ensureSavedNow() {
+  if (!session) return;
+  if (activeClientId) upsertActiveClientFromForm();
+  if (saveInFlight) {
+    await waitForSaveCompletion();
+    return;
+  }
+  await persistSessionToServer();
+  await waitForSaveCompletion();
+}
+
 async function newSession() {
   if (!confirm('Start a new session? This will replace the current session in the browser (you can Save JSON first).')) return;
   clearAssistantConversation();
@@ -2356,6 +2404,7 @@ async function newSession() {
     const data = await resp.json().catch(() => ({}));
     currentBatchId = data?.batchId || null;
     session = normalizeSessionData(data?.snapshot);
+    portalUrlsByClientId = {};
     session.clients = [];
     activeClientId = null;
     createNewClient();
@@ -2914,7 +2963,8 @@ function generateSessionDrafts() {
     const data = job.data || {};
     const html = buildEmailHTMLFromData(data, {
       includeDisclaimers: data.showDisclaimers ?? true,
-      includePreviewHeader: false
+      includePreviewHeader: false,
+      portalUrl: portalUrlsByClientId[job.clientId] || ''
     });
     const subjectDate = formatDueDateForSubject(data.paymentDueDate);
     const subject = `Tax Payment Instructions - Due ${subjectDate || ''}`;
@@ -2953,6 +3003,45 @@ function generateSessionDrafts() {
     .finally(() => {
       if (loadingIndicator) loadingIndicator.classList.remove('active');
     });
+}
+
+async function generateChecklistLink() {
+  if (!session || !activeClientId) {
+    alert('Select a client first.');
+    return;
+  }
+
+  try {
+    await ensureSavedNow();
+    if (!currentBatchId) {
+      throw new Error('Missing batch');
+    }
+
+    const resp = await fetch('/api/plans/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchId: currentBatchId,
+        wizardClientId: activeClientId
+      })
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Publish failed (${resp.status})`);
+    }
+
+    const data = await resp.json().catch(() => ({}));
+    if (!data?.portalUrl) {
+      throw new Error('Missing portal URL');
+    }
+
+    portalUrlsByClientId[activeClientId] = data.portalUrl;
+    regeneratePreviewHTML();
+    alert(`Checklist link generated:\n${data.portalUrl}`);
+  } catch (e) {
+    console.error(e);
+    alert('Unable to generate checklist link. Please try again.');
+  }
 }
 
 function syncSessionAfterChange(options = {}) {
@@ -4484,6 +4573,7 @@ function buildEmailHTMLFromData(data, options = {}) {
   const dateStr = escapeHTML(formatDueDateForSubject(data.paymentDueDate));
   const addressee = escapeHTML(data.addresseeName || '');
   const sender = escapeHTML(data.senderName || '');
+  const portalUrl = safeUrl(options.portalUrl || '');
 
   const greetingText = options.greeting != null
     ? String(options.greeting)
@@ -4526,6 +4616,10 @@ function buildEmailHTMLFromData(data, options = {}) {
     html += `Please be sure to pay by ${dateStr}.<br><br>`;
   } else {
     html += `<br>`;
+  }
+
+  if (portalUrl) {
+    html += `View and confirm your payments here: <a href="${portalUrl}" target="_blank" rel="noopener noreferrer">Open checklist</a><br><br>`;
   }
 
   if (Array.isArray(data.federalPayments) && data.federalPayments.length) {
@@ -4591,7 +4685,8 @@ function buildEmailHTML() {
     greeting,
     personalNote,
     includeDisclaimers: formData.showDisclaimers,
-    includePreviewHeader: true
+    includePreviewHeader: true,
+    portalUrl: portalUrlsByClientId[activeClientId] || ''
   });
 }
 

@@ -1,4 +1,5 @@
 -- Tax Payment Wizard: Postgres schema (hybrid normalized + JSON snapshots)
+-- LEGACY: Prisma schema in prisma/schema.prisma is the source of truth.
 
 create extension if not exists pgcrypto;
 

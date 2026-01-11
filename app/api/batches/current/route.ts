@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { PaymentTaskStatus, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -100,6 +100,12 @@ function extractPayments(clientData: Record<string, any>): WizardPayment[] {
   });
 
   return payments;
+}
+
+function makePaymentKey(payment: { scope: string; stateCode?: string | null; sortOrder?: number | null }) {
+  const stateCode = payment.stateCode ?? "";
+  const sortOrder = payment.sortOrder ?? "";
+  return `${payment.scope}:${stateCode}:${sortOrder}`;
 }
 
 async function getOrCreateLatestBatch(userId: string) {
@@ -212,28 +218,56 @@ export async function PUT(request: Request) {
       }
     });
 
-    await prisma.payment.deleteMany({
+    const existingPayments = await prisma.payment.findMany({
       where: { runId: run.id, userId }
     });
+    const existingByKey = new Map(existingPayments.map((payment) => [makePaymentKey(payment), payment]));
+    const seenKeys = new Set<string>();
 
-    const paymentRows = extractPayments(clientData).map((payment) => ({
-      userId,
-      runId: run.id,
-      scope: payment.scope,
-      stateCode: payment.stateCode,
-      paymentType: payment.paymentType,
-      quarter: payment.quarter,
-      dueDate: payment.dueDate,
-      amount: payment.amount,
-      taxYear: payment.taxYear,
-      notes: payment.notes,
-      method: payment.method,
-      sortOrder: payment.sortOrder
-    }));
+    for (const payment of extractPayments(clientData)) {
+      const key = makePaymentKey(payment);
+      const existing = existingByKey.get(key);
+      const data = {
+        scope: payment.scope,
+        stateCode: payment.stateCode,
+        paymentType: payment.paymentType,
+        quarter: payment.quarter,
+        dueDate: payment.dueDate,
+        amount: payment.amount,
+        taxYear: payment.taxYear,
+        notes: payment.notes,
+        method: payment.method,
+        sortOrder: payment.sortOrder
+      };
 
-    if (paymentRows.length) {
-      await prisma.payment.createMany({
-        data: paymentRows
+      if (existing) {
+        const statusUpdate =
+          existing.status === PaymentTaskStatus.CANCELLED ? { status: PaymentTaskStatus.DRAFT } : {};
+        await prisma.payment.update({
+          where: { id: existing.id },
+          data: { ...data, ...statusUpdate }
+        });
+      } else {
+        await prisma.payment.create({
+          data: {
+            userId,
+            runId: run.id,
+            status: PaymentTaskStatus.DRAFT,
+            ...data
+          }
+        });
+      }
+      seenKeys.add(key);
+    }
+
+    const cancelledIds = existingPayments
+      .filter((payment) => !seenKeys.has(makePaymentKey(payment)))
+      .map((payment) => payment.id);
+
+    if (cancelledIds.length) {
+      await prisma.payment.updateMany({
+        where: { id: { in: cancelledIds } },
+        data: { status: PaymentTaskStatus.CANCELLED }
       });
     }
   }

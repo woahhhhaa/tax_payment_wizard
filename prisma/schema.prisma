@@ -7,6 +7,50 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum PaymentTaskStatus {
+  DRAFT
+  SENT
+  VIEWED
+  CONFIRMED
+  VERIFIED
+  OVERDUE
+  CANCELLED
+}
+
+enum PortalLinkScope {
+  PLAN
+  PAYMENT
+}
+
+enum PaymentEventActorType {
+  CLIENT
+  STAFF
+  SYSTEM
+}
+
+enum KarbonSyncStatus {
+  NOT_LINKED
+  LINKED
+  ERROR
+}
+
+enum KarbonObjectType {
+  CLIENT
+  PAYMENT
+  PLAN
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -14,10 +58,14 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  clients  Client[]
-  batches  Batch[]
-  runs     Run[]
-  payments Payment[]
+  clients         Client[]
+  batches         Batch[]
+  runs            Run[]
+  payments        Payment[]
+  portalLinks     PortalLink[]
+  paymentEvents   PaymentConfirmationEvent[]
+  karbonMappings  KarbonMapping[]
+  notificationLogs NotificationLog[]
 }
 
 model Client {
@@ -30,8 +78,10 @@ model Client {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
-  runs Run[]
+  user             User             @relation(fields: [userId], references: [id])
+  runs             Run[]
+  portalLinks      PortalLink[]
+  notificationLogs NotificationLog[]
 
   @@unique([userId, wizardClientId])
   @@index([userId, updatedAt])
@@ -60,10 +110,11 @@ model Run {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user   User   @relation(fields: [userId], references: [id])
-  batch  Batch  @relation(fields: [batchId], references: [id])
-  client Client @relation(fields: [clientId], references: [id])
-  payments Payment[]
+  user        User        @relation(fields: [userId], references: [id])
+  batch       Batch       @relation(fields: [batchId], references: [id])
+  client      Client      @relation(fields: [clientId], references: [id])
+  payments    Payment[]
+  portalLinks PortalLink[]
 
   @@unique([batchId, clientId])
   @@index([userId, updatedAt])
@@ -83,11 +134,23 @@ model Payment {
   notes       String?
   method      String?
   sortOrder   Int?
+  status      PaymentTaskStatus @default(DRAFT)
+  confirmedAt DateTime?
+  confirmedByEmail String?
+  confirmedAmount Decimal? @db.Decimal(12, 2)
+  confirmedDate DateTime?
+  confirmationNumber String?
+  confirmationNote String?
+  proofFileId String?
+  verifiedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
-  run  Run  @relation(fields: [runId], references: [id])
+  user             User                         @relation(fields: [userId], references: [id])
+  run              Run                          @relation(fields: [runId], references: [id])
+  portalLinks      PortalLink[]
+  confirmationEvents PaymentConfirmationEvent[]
+  notificationLogs NotificationLog[]
 
   @@index([userId, dueDate])
 }
@@ -95,4 +158,89 @@ model Payment {
 model State {
   code String @id
   name String @unique
+}
+
+model PortalLink {
+  id        String          @id @default(uuid())
+  userId    String
+  clientId  String
+  runId     String?
+  paymentId String?
+  scope     PortalLinkScope
+  tokenHash String          @unique
+  expiresAt DateTime?
+  lastUsedAt DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  user             User             @relation(fields: [userId], references: [id])
+  client           Client           @relation(fields: [clientId], references: [id])
+  run              Run?             @relation(fields: [runId], references: [id])
+  payment          Payment?         @relation(fields: [paymentId], references: [id])
+  notificationLogs NotificationLog[]
+
+  @@index([userId, clientId])
+  @@index([userId, runId])
+  @@index([userId, paymentId])
+}
+
+model PaymentConfirmationEvent {
+  id        String                @id @default(uuid())
+  userId    String
+  paymentId String
+  eventType String
+  actorType PaymentEventActorType
+  actorEmail String?
+  metadata  Json?                 @db.JsonB
+  createdAt DateTime              @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([paymentId, createdAt])
+}
+
+model KarbonMapping {
+  id          String           @id @default(uuid())
+  userId      String
+  objectType  KarbonObjectType
+  localId     String
+  karbonKey   String?
+  status      KarbonSyncStatus @default(NOT_LINKED)
+  errorMessage String?
+  lastSyncAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, objectType, localId])
+  @@index([userId, status])
+}
+
+model NotificationLog {
+  id                String              @id @default(uuid())
+  userId            String
+  clientId          String?
+  paymentId         String?
+  portalLinkId      String?
+  messageType       String
+  channel           NotificationChannel
+  recipient         String
+  providerMessageId String?
+  status            NotificationStatus  @default(QUEUED)
+  sentAt            DateTime?
+  errorMessage      String?
+  metadata          Json?               @db.JsonB
+  createdAt         DateTime            @default(now())
+
+  user       User       @relation(fields: [userId], references: [id])
+  client     Client?    @relation(fields: [clientId], references: [id])
+  payment    Payment?   @relation(fields: [paymentId], references: [id])
+  portalLink PortalLink? @relation(fields: [portalLinkId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([paymentId, createdAt])
 }
