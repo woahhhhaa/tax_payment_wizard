@@ -249,7 +249,12 @@ export default async function ClientsPage({ searchParams }: { searchParams?: Sea
                       </TableCell>
                       <TableCell className="min-w-[260px]">
                         <div className="space-y-0.5">
-                          <p className="font-medium leading-tight">{label}</p>
+                          <Link
+                            href={`/app/clients/${client.id}`}
+                            className="font-medium leading-tight text-foreground hover:underline"
+                          >
+                            {label}
+                          </Link>
                           <p className="text-xs text-muted-foreground">ID {client.id.slice(0, 8)}</p>
                         </div>
                       </TableCell>

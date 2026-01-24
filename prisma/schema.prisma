@@ -51,6 +51,11 @@ enum NotificationChannel {
   SMS
 }
 
+enum BatchKind {
+  WIZARD
+  PLAN
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -74,6 +79,7 @@ model Client {
   wizardClientId String?
   name           String?
   addresseeName  String?
+  primaryEmail   String?
   entityType     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -91,6 +97,7 @@ model Batch {
   id           String   @id @default(uuid())
   userId       String
   name         String
+  kind         BatchKind @default(WIZARD)
   snapshotJson Json     @db.JsonB
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -99,6 +106,7 @@ model Batch {
   runs Run[]
 
   @@index([userId, updatedAt])
+  @@index([userId, kind, updatedAt])
 }
 
 model Run {
@@ -230,6 +238,7 @@ model NotificationLog {
   recipient         String
   providerMessageId String?
   status            NotificationStatus  @default(QUEUED)
+  sendAt            DateTime?
   sentAt            DateTime?
   errorMessage      String?
   metadata          Json?               @db.JsonB
@@ -243,4 +252,5 @@ model NotificationLog {
   @@index([userId, createdAt])
   @@index([clientId, createdAt])
   @@index([paymentId, createdAt])
+  @@index([status, sendAt])
 }

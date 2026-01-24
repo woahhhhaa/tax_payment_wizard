@@ -21,7 +21,7 @@ export default async function AppPage() {
 
   const [batches, clients] = await Promise.all([
     prisma.batch.findMany({
-      where: { userId },
+      where: { userId, kind: "WIZARD" },
       orderBy: { updatedAt: "desc" },
       take: 5
     }),

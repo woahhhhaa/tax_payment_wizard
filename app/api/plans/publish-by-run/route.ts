@@ -28,14 +28,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  await prisma.portalLink.deleteMany({
-    where: {
-      userId,
-      runId: run.id,
-      scope: "PLAN"
-    }
-  });
-
   const token = generatePortalToken();
   const tokenHash = hashPortalToken(token);
   const expiresAt = new Date(Date.now() + LINK_TTL_DAYS * 24 * 60 * 60 * 1000);
@@ -49,15 +41,6 @@ export async function POST(request: Request) {
       tokenHash,
       expiresAt
     }
-  });
-
-  await prisma.payment.updateMany({
-    where: {
-      userId,
-      runId: run.id,
-      status: "DRAFT"
-    },
-    data: { status: "SENT" }
   });
 
   const origin = getRequestOrigin(request);

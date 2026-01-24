@@ -79,6 +79,11 @@ export default async function PaymentsPage({
     where: {
       userId,
       dueDate: { lte: endDate },
+      run: {
+        batch: {
+          kind: "PLAN"
+        }
+      },
       ...(statusFilter ? { status: statusFilter } : {})
     },
     include: {

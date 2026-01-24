@@ -1,9 +1,29 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generatePortalToken, getRequestOrigin, hashPortalToken } from "@/lib/portal-token";
+import { extractWizardPayments } from "@/lib/wizard-payments";
 
 const LINK_TTL_DAYS = 365;
+
+async function getOrCreatePlanBatch(userId: string) {
+  const existing = await prisma.batch.findFirst({
+    where: { userId, kind: "PLAN" },
+    orderBy: { createdAt: "asc" }
+  });
+
+  if (existing) return existing;
+
+  return prisma.batch.create({
+    data: {
+      userId,
+      name: "Client Plans",
+      kind: "PLAN",
+      snapshotJson: {}
+    }
+  });
+}
 
 export async function POST(request: Request) {
   const session = await getServerAuthSession();
@@ -21,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   const batch = await prisma.batch.findFirst({
-    where: { id: batchId, userId }
+    where: { id: batchId, userId, kind: "WIZARD" }
   });
 
   if (!batch) {
@@ -36,7 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  const run = await prisma.run.findFirst({
+  const wizardRun = await prisma.run.findFirst({
     where: {
       batchId,
       clientId: client.id,
@@ -44,17 +64,55 @@ export async function POST(request: Request) {
     }
   });
 
-  if (!run) {
+  if (!wizardRun) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  await prisma.portalLink.deleteMany({
+  const planBatch = await getOrCreatePlanBatch(userId);
+  const planRun = await prisma.run.upsert({
     where: {
+      batchId_clientId: {
+        batchId: planBatch.id,
+        clientId: client.id
+      }
+    },
+    create: {
       userId,
-      runId: run.id,
-      scope: "PLAN"
+      batchId: planBatch.id,
+      clientId: client.id,
+      snapshotJson: (wizardRun.snapshotJson ?? {}) as Prisma.InputJsonValue
+    },
+    update: {
+      snapshotJson: (wizardRun.snapshotJson ?? {}) as Prisma.InputJsonValue
     }
   });
+
+  const planPayments = await prisma.payment.count({
+    where: { userId, runId: planRun.id }
+  });
+
+  if (planPayments === 0) {
+    const extractedPayments = extractWizardPayments(wizardRun.snapshotJson as Record<string, any>);
+    if (extractedPayments.length) {
+      await prisma.payment.createMany({
+        data: extractedPayments.map((payment) => ({
+          userId,
+          runId: planRun.id,
+          status: "DRAFT",
+          scope: payment.scope,
+          stateCode: payment.stateCode,
+          paymentType: payment.paymentType,
+          quarter: payment.quarter,
+          dueDate: payment.dueDate,
+          amount: payment.amount,
+          taxYear: payment.taxYear,
+          notes: payment.notes,
+          method: payment.method,
+          sortOrder: payment.sortOrder
+        }))
+      });
+    }
+  }
 
   const token = generatePortalToken();
   const tokenHash = hashPortalToken(token);
@@ -64,20 +122,11 @@ export async function POST(request: Request) {
     data: {
       userId,
       clientId: client.id,
-      runId: run.id,
+      runId: planRun.id,
       scope: "PLAN",
       tokenHash,
       expiresAt
     }
-  });
-
-  await prisma.payment.updateMany({
-    where: {
-      userId,
-      runId: run.id,
-      status: "DRAFT"
-    },
-    data: { status: "SENT" }
   });
 
   const origin = getRequestOrigin(request);
