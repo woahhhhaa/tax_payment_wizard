@@ -101,9 +101,14 @@ export default async function AppPage() {
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader>
-            <CardTitle>Clients</CardTitle>
-            <CardDescription>Recently edited clients synced from your wizard runs.</CardDescription>
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+            <div className="space-y-1">
+              <CardTitle>Clients</CardTitle>
+              <CardDescription>Recently edited clients synced from your wizard runs.</CardDescription>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/app/clients">View all</Link>
+            </Button>
           </CardHeader>
           <Separator />
           <CardContent className="p-0">
