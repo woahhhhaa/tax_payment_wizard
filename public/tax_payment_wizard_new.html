@@ -3,18 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <title>Tax Payment Wizard (Merged Version)</title>
+  <script>
+    (function () {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("embed") === "1") {
+          document.documentElement.dataset.embed = "1";
+        }
+      } catch {}
+    })();
+  </script>
   <style>
     :root {
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --fg: #0f172a;
-      --muted: #64748b;
-      --border: #e2e8f0;
-      --accent: #3b82f6;
-      --accent-hover: #2563eb;
+      --bg: hsl(210 40% 98%);
+      --card: hsl(0 0% 100%);
+      --fg: hsl(222.2 84% 4.9%);
+      --muted: hsl(215.4 16.3% 46.9%);
+      --border: hsl(214.3 31.8% 91.4%);
+      --accent: hsl(238 74% 56%);
+      --accent-hover: hsl(238 74% 50%);
       --success: #10b981;
       --success-hover: #059669;
-      --shadow: 0 1px 1px rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.1);
+      --shadow: 0 1px 1px rgba(15, 23, 42, 0.04), 0 8px 28px rgba(15, 23, 42, 0.1);
+    }
+
+    html[data-embed="1"] body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+    }
+
+    html[data-embed="1"] .wizard-header {
+      display: none;
     }
 
     body {
@@ -99,10 +119,10 @@
       transition: color 0.3s ease;
     }
     .step-progress li.completed {
-      color: #10b981;
+      color: var(--success);
     }
     .step-progress li.active {
-      color: #3b82f6;
+      color: var(--accent);
       font-weight: 600;
     }
     .step-progress li:before {
@@ -121,15 +141,15 @@
     }
     .step-progress li.completed:before {
       content: '✓';
-      background: #10b981;
-      border-color: #10b981;
+      background: var(--success);
+      border-color: var(--success);
       color: white;
     }
     .step-progress li.active:before {
-      border-color: #3b82f6;
-      background: #3b82f6;
+      border-color: var(--accent);
+      background: var(--accent);
       color: white;
-      box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
+      box-shadow: 0 0 0 4px hsl(238 74% 56% / 0.12);
     }
     .step-progress li:after {
       content: '';
@@ -671,9 +691,9 @@
       transition: all 0.2s ease;
     }
     .form-group:focus-within {
-      border-color: #3b82f6;
+      border-color: var(--accent);
       background: #fff;
-      box-shadow: 0 0 0 1px rgba(59,130,246,0.1);
+      box-shadow: 0 0 0 1px hsl(238 74% 56% / 0.12);
     }
     .add-payment-button {
       background: #10b981;

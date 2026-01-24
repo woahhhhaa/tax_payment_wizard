@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getServerAuthSession } from "@/lib/auth";
+import { WizardShell } from "./WizardShell";
 
 export const dynamic = "force-dynamic";
 
@@ -10,5 +11,5 @@ export default async function WizardPage() {
     redirect("/login?next=/wizard");
   }
 
-  redirect("/tax_payment_wizard_new.html");
+  return <WizardShell />;
 }
