@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { getServerAuthSession } from "@/lib/auth";
 
 function getApiKey() {
   return (
@@ -12,6 +13,25 @@ function getApiKey() {
 
 function getModel() {
   return (process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
+}
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 20;
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(key: string) {
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+  if (!entry || entry.resetAt <= now) {
+    const next = { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    rateLimitStore.set(key, next);
+    return { allowed: true, resetAt: next.resetAt };
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, resetAt: entry.resetAt };
+  }
+  entry.count += 1;
+  return { allowed: true, resetAt: entry.resetAt };
 }
 
 const ACTION_SCHEMA = {
@@ -207,27 +227,32 @@ function enforceAssistantRequirements(plan: unknown) {
   };
 }
 
-export async function GET() {
-  const hasKey = Boolean(getApiKey());
-  return NextResponse.json({
-    ok: true,
-    has_openai_key: hasKey,
-    model: getModel(),
-    message: "POST JSON { message, context } to this endpoint to use the assistant."
-  });
-}
-
 export async function POST(request: Request) {
   try {
+    const session = await getServerAuthSession();
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rateLimit = checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      const retryAfter = Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000));
+      return NextResponse.json(
+        { error: "Too many requests. Please try again soon." },
+        { status: 429, headers: { "Retry-After": String(retryAfter) } }
+      );
+    }
+
     const apiKey = getApiKey();
     if (!apiKey) {
+      console.error("Missing OpenAI API key.");
       return NextResponse.json(
         {
-          assistant_message:
-            "Server is missing OPENAI_API_KEY. Set it in Vercel Project Settings → Environment Variables, then redeploy.",
+          assistant_message: "The assistant is unavailable right now.",
           actions: []
         },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -339,18 +364,9 @@ Return ONLY JSON that matches the schema.
     return NextResponse.json(plan);
   } catch (err: any) {
     console.error(err);
-    const status = err?.status || err?.response?.status;
-    const message =
-      err?.message ||
-      err?.response?.data?.error?.message ||
-      err?.error?.message ||
-      "Unknown error";
-
     return NextResponse.json(
       {
-        assistant_message: `Server error calling OpenAI${
-          status ? ` (status ${status})` : ""
-        }: ${message}`,
+        assistant_message: "The assistant is unavailable right now.",
         actions: []
       },
       { status: 500 }

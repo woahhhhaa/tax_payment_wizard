@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generatePortalToken, getRequestOrigin, hashPortalToken } from "@/lib/portal-token";
+import {
+  generatePortalToken,
+  getPortalBaseUrl,
+  getPortalLinkExpiresAt,
+  hashPortalToken
+} from "@/lib/portal-token";
 import { extractWizardPayments } from "@/lib/wizard-payments";
-
-const LINK_TTL_DAYS = 365;
 
 async function getOrCreatePlanBatch(userId: string) {
   const existing = await prisma.batch.findFirst({
@@ -116,7 +119,18 @@ export async function POST(request: Request) {
 
   const token = generatePortalToken();
   const tokenHash = hashPortalToken(token);
-  const expiresAt = new Date(Date.now() + LINK_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const expiresAt = getPortalLinkExpiresAt(now);
+
+  await prisma.portalLink.updateMany({
+    where: {
+      userId,
+      runId: planRun.id,
+      scope: "PLAN",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }]
+    },
+    data: { expiresAt: now }
+  });
 
   await prisma.portalLink.create({
     data: {
@@ -129,8 +143,8 @@ export async function POST(request: Request) {
     }
   });
 
-  const origin = getRequestOrigin(request);
-  const portalUrl = `${origin}/p/${token}`;
+  const portalBaseUrl = getPortalBaseUrl(request);
+  const portalUrl = `${portalBaseUrl}/p/${token}`;
 
   return NextResponse.json({ portalUrl });
 }

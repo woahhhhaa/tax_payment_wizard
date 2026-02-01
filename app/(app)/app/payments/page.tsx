@@ -29,7 +29,7 @@ function isPaymentStatus(value: string): value is PaymentTaskStatus {
 }
 
 function formatCurrency(amount: number | null) {
-  if (!amount) return "—";
+  if (amount === null || amount === undefined) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
 }
 
@@ -69,7 +69,8 @@ export default async function PaymentsPage({
 
   const rangeParam = Array.isArray(searchParams?.range) ? searchParams?.range[0] : searchParams?.range;
   const statusParam = Array.isArray(searchParams?.status) ? searchParams?.status[0] : searchParams?.status;
-  const rangeDays = Math.max(Number(rangeParam || 30), 1);
+  const parsedRange = Number(rangeParam ?? 30);
+  const rangeDays = Number.isFinite(parsedRange) ? Math.min(Math.max(parsedRange, 1), 365) : 30;
   const statusFilter = statusParam && isPaymentStatus(statusParam) ? statusParam : undefined;
 
   const endDate = new Date();

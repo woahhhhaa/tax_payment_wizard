@@ -12,9 +12,12 @@ type RunSummary = {
   clientLabel: string;
 };
 
+type LinkStatus = "queued" | "in_progress" | "complete" | "error";
+
 type LinkResult = RunSummary & {
   portalUrl?: string;
   error?: string;
+  status: LinkStatus;
 };
 
 export function BulkChecklistActions({ runs }: { runs: RunSummary[] }) {
@@ -34,12 +37,24 @@ export function BulkChecklistActions({ runs }: { runs: RunSummary[] }) {
     if (!runs.length || loading) return;
     setLoading(true);
     setCompleted(0);
-    setResults([]);
+    setResults(runs.map((run) => ({ ...run, status: "queued" })));
     setCopySuccess(false);
     setError(null);
 
-    const generated = await Promise.all(
-      runs.map(async (run) => {
+    const queue = [...runs];
+    const concurrency = Math.min(4, runs.length);
+
+    const updateResult = (runId: string, updates: Partial<LinkResult>) => {
+      setResults((prev) =>
+        prev.map((result) => (result.runId === runId ? { ...result, ...updates } : result))
+      );
+    };
+
+    const worker = async () => {
+      while (queue.length) {
+        const run = queue.shift();
+        if (!run) return;
+        updateResult(run.runId, { status: "in_progress", error: undefined });
         try {
           const response = await fetch("/api/plans/publish-by-run", {
             method: "POST",
@@ -57,19 +72,19 @@ export function BulkChecklistActions({ runs }: { runs: RunSummary[] }) {
             throw new Error("Missing portal URL.");
           }
 
-          return { ...run, portalUrl: payload.portalUrl };
+          updateResult(run.runId, { portalUrl: payload.portalUrl, status: "complete" });
         } catch (err) {
-          return {
-            ...run,
+          updateResult(run.runId, {
+            status: "error",
             error: err instanceof Error ? err.message : "Unable to generate link."
-          };
+          });
         } finally {
           setCompleted((prev) => prev + 1);
         }
-      })
-    );
+      }
+    };
 
-    setResults(generated);
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
     setLoading(false);
   }
 
@@ -141,6 +156,34 @@ export function BulkChecklistActions({ runs }: { runs: RunSummary[] }) {
         ) : null}
 
         {results.length > 0 ? (
+          <div className="grid gap-2">
+            {results.map((result) => (
+              <div
+                key={result.runId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/60 px-3 py-2 text-xs"
+              >
+                <span className="font-medium text-foreground">{result.clientLabel}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={statusVariant(result.status)}>
+                    {result.status === "in_progress" ? "In progress" : result.status}
+                  </Badge>
+                  {result.portalUrl ? (
+                    <a
+                      href={result.portalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      Open
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {results.length > 0 ? (
           <Textarea
             rows={Math.min(10, Math.max(3, results.length))}
             readOnly
@@ -148,7 +191,7 @@ export function BulkChecklistActions({ runs }: { runs: RunSummary[] }) {
               .map((result) =>
                 result.portalUrl
                   ? `${result.clientLabel}: ${result.portalUrl}`
-                  : `${result.clientLabel}: ${result.error || "Failed"}`
+                  : `${result.clientLabel}: ${result.error || "Pending"}`
               )
               .join("\n")}
             className="bg-background font-mono text-xs"
@@ -167,4 +210,18 @@ export function BulkChecklistActions({ runs }: { runs: RunSummary[] }) {
       </CardContent>
     </Card>
   );
+}
+
+function statusVariant(status: LinkStatus) {
+  switch (status) {
+    case "complete":
+      return "success";
+    case "error":
+      return "destructive";
+    case "in_progress":
+      return "info";
+    case "queued":
+    default:
+      return "secondary";
+  }
 }
