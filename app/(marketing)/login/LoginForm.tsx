@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/app";
+  const next = safeNext(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -85,4 +85,13 @@ export function LoginForm() {
       </CardContent>
     </Card>
   );
+}
+
+function safeNext(raw: string | null) {
+  if (!raw) return "/app";
+  if (!raw.startsWith("/")) return "/app";
+  if (raw.startsWith("//")) return "/app";
+  if (raw.includes("://")) return "/app";
+  if (raw.includes("\\") || raw.includes("\n") || raw.includes("\r")) return "/app";
+  return raw;
 }
