@@ -66,7 +66,8 @@ When ready, add OAuth or magic-link providers in `lib/auth.ts` and configure the
 | `/login` | Log in |
 | `/register` | Register |
 | `/app` | Minimal dashboard |
-| `/wizard` | Client Plans workspace (requires auth) |
+| `/plans` | Client Plans workspace (requires auth) |
+| `/wizard` | Legacy redirect to `/plans` |
 | `/api/health` | Runtime readiness check (DB/auth/email) |
 
 The legacy static wizard is still available at `/tax_payment_wizard_new.html` for migration/debugging.

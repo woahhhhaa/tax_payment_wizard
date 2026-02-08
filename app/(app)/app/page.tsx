@@ -50,7 +50,7 @@ export default async function AppPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild>
-                <Link href="/wizard">Open client plans</Link>
+                <Link href="/plans">Open client plans</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/app/payments">View payments</Link>

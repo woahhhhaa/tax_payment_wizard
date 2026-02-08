@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/payments", label: "Payments" },
-  { href: "/wizard", label: "Client Plans" }
+  { href: "/plans", label: "Client Plans" }
 ];
 
 export function AppNav() {
@@ -20,8 +20,11 @@ export function AppNav() {
         const isActive =
           item.href === "/app"
             ? pathname === "/app"
-            : item.href === "/wizard"
-              ? pathname === "/wizard"
+            : item.href === "/plans"
+              ? pathname === "/plans" ||
+                pathname.startsWith("/plans/") ||
+                pathname === "/wizard" ||
+                pathname.startsWith("/wizard/")
               : pathname.startsWith(item.href);
 
         return (

@@ -21,5 +21,5 @@ export async function createNewBatch() {
     }
   });
 
-  redirect("/wizard");
+  redirect("/plans");
 }

@@ -17,7 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/app", label: "Home", icon: HomeIcon },
   { href: "/app/clients", label: "Clients", icon: UsersIcon },
   { href: "/app/payments", label: "Payments", icon: CreditCardIcon },
-  { href: "/wizard", label: "Client Plans", icon: SparklesIcon }
+  { href: "/plans", label: "Client Plans", icon: SparklesIcon }
 ];
 
 export function AppSidebar({ userEmail }: { userEmail?: string | null }) {
@@ -40,7 +40,7 @@ export function AppSidebar({ userEmail }: { userEmail?: string | null }) {
 
         <div className="mt-4">
           <Button asChild variant="outline" className="w-full justify-start gap-2">
-            <Link href="/wizard">
+            <Link href="/plans">
               <PlusIcon className="h-4 w-4" aria-hidden />
               New workflow
             </Link>
@@ -53,8 +53,11 @@ export function AppSidebar({ userEmail }: { userEmail?: string | null }) {
           const isActive =
             item.href === "/app"
               ? pathname === "/app"
-              : item.href === "/wizard"
-                ? pathname === "/wizard"
+              : item.href === "/plans"
+                ? pathname === "/plans" ||
+                  pathname.startsWith("/plans/") ||
+                  pathname === "/wizard" ||
+                  pathname.startsWith("/wizard/")
                 : pathname.startsWith(item.href);
 
           return (

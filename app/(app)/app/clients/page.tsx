@@ -234,7 +234,7 @@ export default async function ClientsPage({ searchParams }: { searchParams?: Sea
             {total} total
           </Badge>
           <Button asChild className="gap-2">
-            <Link href="/wizard">
+            <Link href="/plans">
               <PlusIcon className="h-4 w-4" aria-hidden />
               New client
             </Link>
@@ -410,13 +410,13 @@ export default async function ClientsPage({ searchParams }: { searchParams?: Sea
             <div className="p-10 text-center">
               <p className="text-sm font-medium">No clients found</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Try adjusting your filters or run the wizard to add clients.
+                Try adjusting your filters or open client plans to add clients.
               </p>
               <div className="mt-6 flex justify-center">
                 <Button asChild className="gap-2">
-                  <Link href="/wizard">
+                  <Link href="/plans">
                     <PlusIcon className="h-4 w-4" aria-hidden />
-                    Open wizard
+                    Open client plans
                   </Link>
                 </Button>
               </div>
