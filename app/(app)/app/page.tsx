@@ -19,7 +19,7 @@ export default async function AppPage() {
     redirect("/login?next=/app");
   }
 
-  const [batches, clients] = await Promise.all([
+  const [workflows, clients] = await Promise.all([
     prisma.batch.findMany({
       where: { userId, kind: "WIZARD" },
       orderBy: { updatedAt: "desc" },
@@ -50,14 +50,14 @@ export default async function AppPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild>
-                <Link href="/wizard">Open batch studio</Link>
+                <Link href="/wizard">Open client plans</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/app/payments">View payments</Link>
               </Button>
               <form action={createNewBatch}>
                 <Button variant="secondary" type="submit">
-                  New batch
+                  New workflow
                 </Button>
               </form>
             </div>
@@ -68,24 +68,24 @@ export default async function AppPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle>Recent batches</CardTitle>
-            <CardDescription>Track the latest batch activity and jump back into batch studio.</CardDescription>
+            <CardTitle>Recent workflows</CardTitle>
+            <CardDescription>Track recent planning activity and reopen any workflow instantly.</CardDescription>
           </CardHeader>
           <Separator />
           <CardContent className="p-0">
-            {batches.length ? (
+            {workflows.length ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Batch name</TableHead>
+                    <TableHead>Workflow name</TableHead>
                     <TableHead className="w-[200px]">Last updated</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {batches.map((batch) => (
-                    <TableRow key={batch.id}>
-                      <TableCell className="font-medium">{batch.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{batch.updatedAt.toLocaleString()}</TableCell>
+                  {workflows.map((workflow) => (
+                    <TableRow key={workflow.id}>
+                      <TableCell className="font-medium">{workflow.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{workflow.updatedAt.toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -93,7 +93,7 @@ export default async function AppPage() {
             ) : (
               <div className="p-10">
                 <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center text-sm text-muted-foreground">
-                  No batches yet. Create one to start saving wizard sessions.
+                  No workflows yet. Create one to start planning client payments.
                 </div>
               </div>
             )}
@@ -104,7 +104,7 @@ export default async function AppPage() {
           <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
             <div className="space-y-1">
               <CardTitle>Clients</CardTitle>
-              <CardDescription>Recently edited clients synced from your wizard runs.</CardDescription>
+              <CardDescription>Recently edited clients synced from your planning workspace.</CardDescription>
             </div>
             <Button asChild variant="outline" size="sm">
               <Link href="/app/clients">View all</Link>
@@ -136,7 +136,7 @@ export default async function AppPage() {
             ) : (
               <div className="p-10">
                 <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center text-sm text-muted-foreground">
-                  Clients will appear here after you save runs in the wizard.
+                  Clients will appear here after you save them in client plans.
                 </div>
               </div>
             )}

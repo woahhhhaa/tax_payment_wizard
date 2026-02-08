@@ -19,8 +19,8 @@ export default function RegisterPage() {
         <div className="grid gap-3">
           {[
             {
-              title: "Modern UI on top of your existing wizard",
-              description: "Keep the legacy wizard logic, but get a clean dashboard for the rest."
+              title: "Client plan workspace",
+              description: "Build payment plans in one polished flow from intake to publication."
             },
             {
               title: "Better visibility for due dates",

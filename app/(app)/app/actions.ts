@@ -16,7 +16,7 @@ export async function createNewBatch() {
   await prisma.batch.create({
     data: {
       userId,
-      name: `New Batch ${new Date().toLocaleDateString()}`,
+      name: `Workflow ${new Date().toLocaleDateString()}`,
       snapshotJson: snapshot
     }
   });

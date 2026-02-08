@@ -79,10 +79,10 @@ type StepConfig = {
 };
 
 const STEPS: StepConfig[] = [
-  { id: "basic", title: "Basic info", hint: "Identity, recipient, and defaults" },
-  { id: "federal", title: "Federal", hint: "Quarterly and filing payments" },
-  { id: "state", title: "State", hint: "State-specific schedules" },
-  { id: "review", title: "Review", hint: "Quality check and publish" }
+  { id: "basic", title: "Client profile", hint: "Contacts, entity setup, and defaults" },
+  { id: "federal", title: "Federal plan", hint: "IRS estimates, extensions, and balances" },
+  { id: "state", title: "State plan", hint: "Jurisdiction-specific payment planning" },
+  { id: "review", title: "Publish", hint: "Final review and portal launch" }
 ];
 
 const FEDERAL_PAYMENT_TYPES = ["Extension", "Estimated", "Balance Due"];
@@ -235,7 +235,7 @@ function createEmptySession(name?: string): WizardSession {
   return {
     version: 1,
     id: createId(),
-    name: name?.trim() || "Untitled Session",
+    name: name?.trim() || "Untitled Workflow",
     createdAt: now,
     updatedAt: now,
     clients: []
@@ -435,7 +435,7 @@ export function WizardShell() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Unable to save this batch right now.");
+        throw new Error(payload?.error || "Unable to save your workspace right now.");
       }
 
       const payload = await response.json().catch(() => ({}));
@@ -484,7 +484,7 @@ export function WizardShell() {
         const response = await fetch("/api/batches/current", { cache: "no-store" });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Unable to load the current batch.");
+          throw new Error(payload?.error || "Unable to load your planning workspace.");
         }
 
         const payload = await response.json();
@@ -502,14 +502,14 @@ export function WizardShell() {
       } catch (error) {
         if (ignore) return;
 
-        const fallback = createEmptySession("New Batch");
+        const fallback = createEmptySession("New Workflow");
         sessionRef.current = fallback;
         setSession(fallback);
         setBatchId(null);
         setActiveClientId(null);
         setSaveStatus({
           state: "error",
-          message: error instanceof Error ? error.message : "Unable to load batch"
+          message: error instanceof Error ? error.message : "Unable to load workspace"
         });
       } finally {
         if (ignore) return;
@@ -618,7 +618,7 @@ export function WizardShell() {
     if (!activeClient || !sessionRef.current) return;
 
     const clientName = activeClient.data.addresseeName || activeClient.clientId;
-    const confirmed = window.confirm(`Delete ${clientName}? This removes the client from this batch.`);
+    const confirmed = window.confirm(`Delete ${clientName}? This removes the client from this workflow.`);
     if (!confirmed) return;
 
     updateSession((current) => {
@@ -636,7 +636,7 @@ export function WizardShell() {
   }, [activeClient, updateSession]);
 
   const newBatch = useCallback(async () => {
-    setSaveStatus({ state: "saving", message: "Creating new batch..." });
+    setSaveStatus({ state: "saving", message: "Creating a new workflow..." });
     setPublishError(null);
     setPortalUrl(null);
 
@@ -644,12 +644,12 @@ export function WizardShell() {
       const response = await fetch("/api/batches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: `Batch ${new Date().toLocaleDateString()}` })
+        body: JSON.stringify({ name: `Workflow ${new Date().toLocaleDateString()}` })
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Unable to create a new batch.");
+        throw new Error(payload?.error || "Unable to create a new workflow.");
       }
 
       const payload = await response.json();
@@ -660,12 +660,12 @@ export function WizardShell() {
       sessionRef.current = snapshot;
       setActiveClientId(snapshot.clients[0]?.clientId ?? null);
       setActiveStep("basic");
-      setSaveStatus({ state: "saved", message: "New batch ready" });
+      setSaveStatus({ state: "saved", message: "New workflow ready" });
       setLastSavedAt(new Date());
     } catch (error) {
       setSaveStatus({
         state: "error",
-        message: error instanceof Error ? error.message : "Unable to create batch"
+        message: error instanceof Error ? error.message : "Unable to create workflow"
       });
     }
   }, []);
@@ -687,7 +687,7 @@ export function WizardShell() {
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
 
-    const filename = `${(snapshot.name || "batch").replace(/\s+/g, "-").toLowerCase()}-${new Date()
+    const filename = `${(snapshot.name || "workflow").replace(/\s+/g, "-").toLowerCase()}-${new Date()
       .toISOString()
       .slice(0, 10)}.json`;
 
@@ -774,7 +774,7 @@ export function WizardShell() {
 
     const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const filename = `${(snapshot.name || "batch").replace(/\s+/g, "-").toLowerCase()}-${new Date()
+    const filename = `${(snapshot.name || "workflow").replace(/\s+/g, "-").toLowerCase()}-${new Date()
       .toISOString()
       .slice(0, 10)}.csv`;
 
@@ -985,7 +985,7 @@ export function WizardShell() {
 
   const publishChecklist = useCallback(async () => {
     if (!activeClientId || !batchIdRef.current) {
-      setPublishError("Save your batch and select a client first.");
+      setPublishError("Save your changes and choose a client first.");
       return;
     }
 
@@ -1037,7 +1037,7 @@ export function WizardShell() {
   if (loading || !session) {
     return (
       <Card className="bg-card/70 backdrop-blur">
-        <CardContent className="py-16 text-center text-sm text-muted-foreground">Loading Batch Studio...</CardContent>
+        <CardContent className="py-16 text-center text-sm text-muted-foreground">Loading Client Plans...</CardContent>
       </Card>
     );
   }
@@ -1052,17 +1052,17 @@ export function WizardShell() {
         <CardHeader className="relative space-y-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Batch Studio</p>
-              <CardTitle className="text-2xl tracking-tight sm:text-3xl">Tax Payment Workflow</CardTitle>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Client Plans</p>
+              <CardTitle className="text-2xl tracking-tight sm:text-3xl">Payment Planning Workspace</CardTitle>
               <CardDescription>
-                One cohesive workspace for onboarding clients, planning payments, and publishing checklist links.
+                Build polished client payment plans and publish secure portals in one cohesive workspace.
               </CardDescription>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="secondary" className="gap-2" onClick={newBatch}>
                 <PlusIcon className="h-4 w-4" aria-hidden />
-                New batch
+                New workflow
               </Button>
               <Button type="button" variant="outline" className="gap-2" onClick={triggerImport}>
                 <UploadIcon className="h-4 w-4" aria-hidden />
@@ -1085,12 +1085,12 @@ export function WizardShell() {
 
           <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
             <div className="grid gap-2">
-              <Label htmlFor="session-name">Batch name</Label>
+              <Label htmlFor="workflow-name">Workflow name</Label>
               <Input
-                id="session-name"
+                id="workflow-name"
                 value={session.name}
                 onChange={(event) => onSessionNameChange(event.target.value)}
-                placeholder="Spring estimated tax wave"
+                placeholder="2026 Estimated Payment Portfolio"
               />
             </div>
             <div className="flex items-center gap-2 pb-1">
@@ -1107,11 +1107,6 @@ export function WizardShell() {
               >
                 {formatSaveMessage(saveStatus, lastSavedAt)}
               </Badge>
-              {batchId ? (
-                <Badge variant="outline" className="font-mono text-[11px]">
-                  {batchId.slice(0, 8)}
-                </Badge>
-              ) : null}
             </div>
           </div>
 
@@ -1134,18 +1129,19 @@ export function WizardShell() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Clients" value={String(totals.clients)} />
-        <MetricCard label="Federal payments" value={String(totals.federal)} />
-        <MetricCard label="State payments" value={String(totals.state)} />
-        <MetricCard label="Due in 21 days" value={String(totals.upcoming)} />
-        <MetricCard label="Planned amount" value={formatCurrency(totals.amount)} />
+        <MetricCard label="Federal obligations" value={String(totals.federal)} />
+        <MetricCard label="State obligations" value={String(totals.state)} />
+        <MetricCard label="Upcoming deadlines" value={String(totals.upcoming)} />
+        <MetricCard label="Planned value" value={formatCurrency(totals.amount)} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <Card className="h-fit bg-card/70 backdrop-blur">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base">Client queue</CardTitle>
+            <CardTitle className="text-base">Client portfolio</CardTitle>
             <CardDescription>
-              Build each client package in one pass. {totals.clients ? `${totals.clients} clients in this batch.` : "Add your first client to start."}
+              Build each client plan in one place.{" "}
+              {totals.clients ? `${totals.clients} clients currently in scope.` : "Add your first client to begin."}
             </CardDescription>
           </CardHeader>
           <Separator />
@@ -1236,9 +1232,35 @@ export function WizardShell() {
         </Card>
 
         <div className="space-y-6">
+          {activeClient ? (
+            <Card className="bg-card/70 backdrop-blur">
+              <CardHeader className="pb-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      Current Client
+                    </p>
+                    <CardTitle className="text-xl">
+                      {activeClient.data.addresseeName || "Unnamed client"}
+                    </CardTitle>
+                    <CardDescription>
+                      {activeClient.data.entityType === "business" ? "Business entity" : "Individual"} •{" "}
+                      {activeClient.data.federalPayments.length +
+                        activeClient.data.statePayments.reduce((sum, group) => sum + group.payments.length, 0)}{" "}
+                      planned payments
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="font-mono text-[11px]">
+                    {activeClient.clientId}
+                  </Badge>
+                </div>
+              </CardHeader>
+            </Card>
+          ) : null}
+
           <Card className="overflow-hidden">
             <CardHeader className="space-y-3">
-              <CardTitle className="text-base">Workflow</CardTitle>
+              <CardTitle className="text-base">Plan builder</CardTitle>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {STEPS.map((step) => {
                   const isActive = activeStep === step.id;
@@ -1273,7 +1295,7 @@ export function WizardShell() {
           {!activeClient ? (
             <Card>
               <CardContent className="py-16 text-center text-sm text-muted-foreground">
-                Select or create a client to begin building this batch.
+                Choose a client from the portfolio, or add a new one to begin.
               </CardContent>
             </Card>
           ) : null}
@@ -1281,9 +1303,9 @@ export function WizardShell() {
           {activeClient && activeStep === "basic" ? (
             <Card className="overflow-hidden">
               <CardHeader>
-                <CardTitle className="text-xl">Basic info</CardTitle>
+                <CardTitle className="text-xl">Client profile</CardTitle>
                 <CardDescription>
-                  Define who receives instructions and how this client should be addressed.
+                  Define recipient details, filing profile, and communication defaults.
                 </CardDescription>
               </CardHeader>
               <Separator />
@@ -1442,14 +1464,14 @@ export function WizardShell() {
             <Card className="overflow-hidden">
               <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="text-xl">Federal payments</CardTitle>
+                  <CardTitle className="text-xl">Federal plan</CardTitle>
                   <CardDescription>
-                    Add extension, estimated, and balance due entries for this client.
+                    Add extension, estimated, and balance due obligations for this client.
                   </CardDescription>
                 </div>
                 <Button type="button" className="gap-2" onClick={addFederalPayment}>
                   <PlusIcon className="h-4 w-4" aria-hidden />
-                  Add federal payment
+                  Add federal obligation
                 </Button>
               </CardHeader>
               <Separator />
@@ -1600,7 +1622,7 @@ export function WizardShell() {
                 ) : (
                   <div className="p-10">
                     <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center text-sm text-muted-foreground">
-                      No federal payments added yet.
+                      No federal obligations added yet.
                     </div>
                   </div>
                 )}
@@ -1612,9 +1634,9 @@ export function WizardShell() {
             <Card className="overflow-hidden">
               <CardHeader className="space-y-4">
                 <div>
-                  <CardTitle className="text-xl">State payments</CardTitle>
+                  <CardTitle className="text-xl">State plan</CardTitle>
                   <CardDescription>
-                    Group payments by state and capture filing details by jurisdiction.
+                    Group obligations by state and capture filing details by jurisdiction.
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1654,7 +1676,7 @@ export function WizardShell() {
                             onClick={() => addStatePayment(groupIndex)}
                           >
                             <PlusIcon className="h-3.5 w-3.5" aria-hidden />
-                            Add payment
+                            Add obligation
                           </Button>
                           <Button
                             type="button"
@@ -1813,14 +1835,14 @@ export function WizardShell() {
                             </TableBody>
                           </Table>
                         ) : (
-                          <div className="p-6 text-sm text-muted-foreground">No payments yet for this state.</div>
+                          <div className="p-6 text-sm text-muted-foreground">No obligations yet for this state.</div>
                         )}
                       </CardContent>
                     </Card>
                   ))
                 ) : (
                   <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center text-sm text-muted-foreground">
-                    No state groups yet.
+                    No state plans yet.
                   </div>
                 )}
               </CardContent>
@@ -1830,16 +1852,16 @@ export function WizardShell() {
           {activeClient && activeStep === "review" ? (
             <Card className="overflow-hidden">
               <CardHeader className="space-y-2">
-                <CardTitle className="text-xl">Review and publish</CardTitle>
+                <CardTitle className="text-xl">Publish plan</CardTitle>
                 <CardDescription>
-                  Validate this client package, then publish a checklist link for confirmation.
+                  Validate this client plan, then publish a secure portal link for confirmation.
                 </CardDescription>
               </CardHeader>
               <Separator />
               <CardContent className="space-y-6 pt-6">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <MetricCard
-                    label="Client"
+                    label="Current client"
                     value={activeClient.data.addresseeName || "Unnamed"}
                     compact
                   />
@@ -1872,9 +1894,9 @@ export function WizardShell() {
                 <div className="rounded-2xl border bg-background/80 p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm font-medium">Checklist publishing</p>
+                      <p className="text-sm font-medium">Portal publishing</p>
                       <p className="text-sm text-muted-foreground">
-                        Save and generate a secure portal URL for this client.
+                        Save and generate a secure client portal URL.
                       </p>
                     </div>
                     <Button
@@ -1884,7 +1906,7 @@ export function WizardShell() {
                       disabled={publishingChecklist}
                     >
                       <LinkIcon className="h-4 w-4" aria-hidden />
-                      {publishingChecklist ? "Publishing..." : "Generate checklist link"}
+                      {publishingChecklist ? "Publishing..." : "Generate portal link"}
                     </Button>
                   </div>
 
@@ -1902,7 +1924,7 @@ export function WizardShell() {
 
                 <div className="rounded-2xl border bg-background/80 p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Client payment plan</p>
+                    <p className="text-sm font-medium">Planned payment schedule</p>
                     <Button asChild variant="outline" size="sm">
                       <Link href="/app/payments">Open payments board</Link>
                     </Button>

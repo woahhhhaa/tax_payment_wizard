@@ -13,7 +13,7 @@ export default function LoginPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Sign in</h1>
           <p className="text-muted-foreground">
-            Open your dashboard to manage batches, publish checklists, and track confirmations.
+            Open your workspace to manage client plans, publish checklists, and track confirmations.
           </p>
         </div>
 

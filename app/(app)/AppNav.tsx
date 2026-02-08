@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/payments", label: "Payments" },
-  { href: "/wizard", label: "Batch Studio" }
+  { href: "/wizard", label: "Client Plans" }
 ];
 
 export function AppNav() {

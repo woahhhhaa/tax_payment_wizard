@@ -5,8 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const FEATURES = [
   {
-    title: "Batch-first workflow",
-    description: "Save wizard sessions into batches, then revisit and reuse them without starting from scratch."
+    title: "Workflow-first planning",
+    description: "Organize client payment plans in reusable workflows without starting from scratch."
   },
   {
     title: "Client checklist portal",
@@ -42,7 +42,7 @@ export default function HomePage() {
             Tax payment schedules, without the chaos.
           </h1>
           <p className="mt-4 text-balance text-base text-muted-foreground sm:text-lg">
-            Build payment schedules, generate client drafts, and track confirmations—across batches—without
+            Build payment schedules, generate client drafts, and track confirmations across workflows without
             losing the thread.
           </p>
 
@@ -119,14 +119,14 @@ export default function HomePage() {
       <section id="workflow" className="grid items-start gap-6 lg:grid-cols-2">
         <Card className="bg-card/70 backdrop-blur">
           <CardHeader>
-            <CardTitle>From wizard → to dashboard</CardTitle>
+            <CardTitle>From planning to confirmation</CardTitle>
             <CardDescription>
-              Build schedules in the legacy wizard, then track outcomes in a modern board.
+              Build client plans in one workspace, then track outcomes in a modern board.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm text-muted-foreground">
             <div className="rounded-xl border bg-background/60 px-4 py-3">
-              Save a wizard run into a batch.
+              Save each plan as a reusable workflow.
             </div>
             <div className="rounded-xl border bg-background/60 px-4 py-3">
               Publish a portal checklist link per client.
