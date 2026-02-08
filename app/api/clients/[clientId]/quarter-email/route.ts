@@ -223,12 +223,18 @@ export async function POST(request: Request, { params }: { params: { clientId: s
     checklistUrl: portalUrl
   });
 
-  const result = await sendEmail({
-    to: client.primaryEmail,
-    subject,
-    html,
-    text
-  });
+  let result: { messageId: string };
+  try {
+    result = await sendEmail({
+      to: client.primaryEmail,
+      subject,
+      html,
+      text
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to send email";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 
   await prisma.$transaction([
     prisma.notificationLog.create({

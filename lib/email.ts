@@ -27,8 +27,13 @@ export async function sendEmail({ to, subject, html, text }: SendEmailArgs): Pro
     return { messageId: "console" };
   }
 
-  const host = getRequiredEnv("SMTP_HOST");
-  const from = getRequiredEnv("SMTP_FROM");
+  const host = process.env.SMTP_HOST?.trim();
+  const from = process.env.SMTP_FROM?.trim();
+  if (!host || !from) {
+    throw new Error(
+      "Email is not configured. Set EMAIL_TRANSPORT=console for local testing, or configure SMTP_HOST and SMTP_FROM."
+    );
+  }
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = String(process.env.SMTP_SECURE || "").toLowerCase() === "true";
 
@@ -52,4 +57,3 @@ export async function sendEmail({ to, subject, html, text }: SendEmailArgs): Pro
 
   return { messageId: String(result.messageId || "") || "unknown" };
 }
-
