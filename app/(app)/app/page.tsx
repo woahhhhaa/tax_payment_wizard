@@ -50,7 +50,7 @@ export default async function AppPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild>
-                <Link href="/wizard">Open wizard</Link>
+                <Link href="/wizard">Open batch studio</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/app/payments">View payments</Link>
@@ -69,7 +69,7 @@ export default async function AppPage() {
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Recent batches</CardTitle>
-            <CardDescription>Track the latest batch activity and jump back into the wizard.</CardDescription>
+            <CardDescription>Track the latest batch activity and jump back into batch studio.</CardDescription>
           </CardHeader>
           <Separator />
           <CardContent className="p-0">

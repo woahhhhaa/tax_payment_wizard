@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/payments", label: "Payments" },
-  { href: "/wizard", label: "Wizard" }
+  { href: "/wizard", label: "Batch Studio" }
 ];
 
 export function AppNav() {
@@ -42,4 +42,3 @@ export function AppNav() {
     </nav>
   );
 }
-

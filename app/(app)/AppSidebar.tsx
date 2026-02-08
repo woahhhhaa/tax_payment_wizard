@@ -17,7 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/app", label: "Home", icon: HomeIcon },
   { href: "/app/clients", label: "Clients", icon: UsersIcon },
   { href: "/app/payments", label: "Payments", icon: CreditCardIcon },
-  { href: "/wizard", label: "Wizard", icon: SparklesIcon }
+  { href: "/wizard", label: "Batch Studio", icon: SparklesIcon }
 ];
 
 export function AppSidebar({ userEmail }: { userEmail?: string | null }) {
@@ -42,7 +42,7 @@ export function AppSidebar({ userEmail }: { userEmail?: string | null }) {
           <Button asChild variant="outline" className="w-full justify-start gap-2">
             <Link href="/wizard">
               <PlusIcon className="h-4 w-4" aria-hidden />
-              Create new
+              New batch
             </Link>
           </Button>
         </div>
