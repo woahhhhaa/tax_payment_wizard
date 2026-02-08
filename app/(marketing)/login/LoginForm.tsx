@@ -12,10 +12,12 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"));
+  const middlewareError = mapAuthQueryError(searchParams.get("error"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const displayError = error || middlewareError;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -34,6 +36,8 @@ export function LoginForm() {
     if (result?.error) {
       if (result.error === "CredentialsSignin") {
         setError("Invalid email or password.");
+      } else if (result.error === "Configuration") {
+        setError("Authentication is misconfigured on the server. Check NEXTAUTH_SECRET and NEXTAUTH_URL.");
       } else {
         setError("Sign-in is temporarily unavailable. Please check server auth/database settings.");
       }
@@ -76,9 +80,9 @@ export function LoginForm() {
             />
           </div>
 
-          {error ? (
+          {displayError ? (
             <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
+              {displayError}
             </div>
           ) : null}
 
@@ -89,6 +93,19 @@ export function LoginForm() {
       </CardContent>
     </Card>
   );
+}
+
+function mapAuthQueryError(errorCode: string | null) {
+  if (!errorCode) return null;
+
+  switch (errorCode) {
+    case "missing_nextauth_secret":
+      return "Authentication is not configured. Set NEXTAUTH_SECRET in your server environment.";
+    case "auth_token_error":
+      return "Authentication token validation failed. Check NEXTAUTH_SECRET and NEXTAUTH_URL.";
+    default:
+      return null;
+  }
 }
 
 function safeNext(raw: string | null) {

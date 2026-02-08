@@ -1,6 +1,6 @@
 # Tax Payment Wizard SaaS (Next.js)
 
-This repo is now the foundation for a commercial SaaS tax payment workflow. The legacy wizard UI still lives in `public/tax_payment_wizard_new.html`, but all persistence and authentication are now server-backed.
+This repo is the foundation for a commercial SaaS tax payment workflow. The primary planning UI is now the in-app Client Plans workspace, and persistence/authentication are server-backed.
 
 ## Local setup
 
@@ -41,12 +41,14 @@ npm run dev
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `NEXTAUTH_SECRET` | Secret for Auth.js JWT signing |
+| `NEXTAUTH_URL` | Public app URL used by auth callbacks |
 | `OPENAI_API_KEY` | Server-side key for `/api/assistant` |
 | `OPENAI_MODEL` | Defaults to `gpt-4.1-mini` |
 | `STRIPE_SECRET_KEY` | Placeholder for billing scaffolding |
 | `STRIPE_WEBHOOK_SECRET` | Placeholder for billing scaffolding |
-| `EMAIL_TRANSPORT` | Use `console` to skip SMTP during initial deploys |
+| `EMAIL_TRANSPORT` | `smtp` (default) or `console` for local-only logging |
 | `SMTP_HOST` / `SMTP_FROM` | Required when `EMAIL_TRANSPORT=smtp` (default) |
+| `CRON_SECRET` | Required in production for `/api/notifications/process` |
 
 ## Authentication (Credentials MVP)
 
@@ -64,9 +66,10 @@ When ready, add OAuth or magic-link providers in `lib/auth.ts` and configure the
 | `/login` | Log in |
 | `/register` | Register |
 | `/app` | Minimal dashboard |
-| `/wizard` | Legacy wizard UI (requires auth) |
+| `/wizard` | Client Plans workspace (requires auth) |
+| `/api/health` | Runtime readiness check (DB/auth/email) |
 
-The wizard is still served as a static HTML file. It now loads and autosaves sessions via `/api/batches/current`.
+The legacy static wizard is still available at `/tax_payment_wizard_new.html` for migration/debugging.
 
 ## Deployment (Vercel)
 
@@ -74,6 +77,7 @@ The wizard is still served as a static HTML file. It now loads and autosaves ses
 2. Use the standard Next.js build (`npm run build`) and start commands.
 3. Run migrations against your managed Postgres database (e.g. Vercel Postgres, Supabase, RDS).
 4. If you are not ready to configure SMTP yet, set `EMAIL_TRANSPORT=console` to prevent email routes from failing.
+5. Set `CRON_SECRET` and configure your cron caller to send `x-cron-secret`.
 
 ## Prisma scripts
 
