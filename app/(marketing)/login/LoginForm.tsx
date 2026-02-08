@@ -32,7 +32,11 @@ export function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
-      setError("Invalid email or password.");
+      if (result.error === "CredentialsSignin") {
+        setError("Invalid email or password.");
+      } else {
+        setError("Sign-in is temporarily unavailable. Please check server auth/database settings.");
+      }
       return;
     }
 

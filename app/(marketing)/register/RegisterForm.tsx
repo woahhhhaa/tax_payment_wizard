@@ -33,12 +33,22 @@ export function RegisterForm() {
       return;
     }
 
-    await signIn("credentials", {
+    const signInResult = await signIn("credentials", {
       redirect: false,
       email,
       password,
       callbackUrl: "/app"
     });
+
+    if (signInResult?.error) {
+      if (signInResult.error === "CredentialsSignin") {
+        setError("Account created, but sign-in failed. Please log in manually.");
+      } else {
+        setError("Account created, but sign-in is temporarily unavailable.");
+      }
+      setLoading(false);
+      return;
+    }
 
     setLoading(false);
     router.push("/app");
