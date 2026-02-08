@@ -45,6 +45,8 @@ npm run dev
 | `OPENAI_MODEL` | Defaults to `gpt-4.1-mini` |
 | `STRIPE_SECRET_KEY` | Placeholder for billing scaffolding |
 | `STRIPE_WEBHOOK_SECRET` | Placeholder for billing scaffolding |
+| `EMAIL_TRANSPORT` | Use `console` to skip SMTP during initial deploys |
+| `SMTP_HOST` / `SMTP_FROM` | Required when `EMAIL_TRANSPORT=smtp` (default) |
 
 ## Authentication (Credentials MVP)
 
@@ -71,6 +73,7 @@ The wizard is still served as a static HTML file. It now loads and autosaves ses
 1. Add the env vars listed above in your Vercel project settings.
 2. Use the standard Next.js build (`npm run build`) and start commands.
 3. Run migrations against your managed Postgres database (e.g. Vercel Postgres, Supabase, RDS).
+4. If you are not ready to configure SMTP yet, set `EMAIL_TRANSPORT=console` to prevent email routes from failing.
 
 ## Prisma scripts
 
