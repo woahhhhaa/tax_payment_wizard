@@ -78,11 +78,18 @@ type StepConfig = {
   hint: string;
 };
 
+type ClientPlanTemplate = {
+  id: string;
+  name: string;
+  data: WizardClientData;
+  updatedAt: string;
+};
+
 const STEPS: StepConfig[] = [
   { id: "basic", title: "Client profile", hint: "Contacts, entity setup, and defaults" },
   { id: "federal", title: "Federal plan", hint: "IRS estimates, extensions, and balances" },
   { id: "state", title: "State plan", hint: "Jurisdiction-specific payment planning" },
-  { id: "review", title: "Publish", hint: "Final review and portal launch" }
+  { id: "review", title: "Review", hint: "Finalize and send to client" }
 ];
 
 const FEDERAL_PAYMENT_TYPES = ["Extension", "Estimated", "Balance Due"];
@@ -90,6 +97,7 @@ const STATE_PAYMENT_TYPES = ["Estimated", "Extension", "Balance Due", "PTE"];
 const PAYMENT_METHODS = ["electronic", "mail"];
 const BUSINESS_TYPES = ["ccorp", "scorp", "partnership", "llc"];
 const CA_CORP_FORMS = ["100", "100S", "100W", "100X"];
+const TEMPLATE_STORAGE_KEY = "tpw-client-plan-templates-v1";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -235,7 +243,7 @@ function createEmptySession(name?: string): WizardSession {
   return {
     version: 1,
     id: createId(),
-    name: name?.trim() || "Untitled Workflow",
+    name: name?.trim() || "Untitled Plan",
     createdAt: now,
     updatedAt: now,
     clients: []
@@ -352,6 +360,8 @@ export function WizardShell() {
     quarter: number;
     taxYear: number;
   } | null>(null);
+  const [templates, setTemplates] = useState<ClientPlanTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const [newStateCode, setNewStateCode] = useState("CA");
 
@@ -367,6 +377,44 @@ export function WizardShell() {
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(TEMPLATE_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+
+      const next = parsed
+        .map((entry) => asRecord(entry))
+        .map((entry) => {
+          const id = String(entry.id ?? "").trim();
+          const name = String(entry.name ?? "").trim();
+          if (!id || !name) return null;
+          return {
+            id,
+            name,
+            updatedAt: String(entry.updatedAt ?? new Date().toISOString()),
+            data: normalizeClientData(entry.data)
+          } as ClientPlanTemplate;
+        })
+        .filter((entry): entry is ClientPlanTemplate => entry !== null);
+
+      setTemplates(next);
+      setSelectedTemplateId(next[0]?.id ?? "");
+    } catch {
+      setTemplates([]);
+      setSelectedTemplateId("");
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [templates]);
 
   useEffect(() => {
     batchIdRef.current = batchId;
@@ -492,6 +540,39 @@ export function WizardShell() {
     };
   }, [activeClient]);
 
+  const reviewChecks = useMemo(() => {
+    if (!activeClient) return [];
+    const payments = [
+      ...activeClient.data.federalPayments,
+      ...activeClient.data.statePayments.flatMap((group) => group.payments)
+    ];
+    const hasValidAmount = payments.every((payment) => safeNumber(payment.amount) > 0);
+    const hasDueDates = payments.every((payment) => Boolean(payment.dueDate));
+
+    return [
+      {
+        label: "Client name",
+        ok: Boolean(activeClient.data.addresseeName.trim())
+      },
+      {
+        label: "Client email",
+        ok: Boolean(activeClient.data.primaryEmail.trim())
+      },
+      {
+        label: "At least one planned payment",
+        ok: payments.length > 0
+      },
+      {
+        label: "All payments have due dates",
+        ok: payments.length > 0 && hasDueDates
+      },
+      {
+        label: "All payments have amounts",
+        ok: payments.length > 0 && hasValidAmount
+      }
+    ];
+  }, [activeClient]);
+
   useEffect(() => {
     if (!previewCycles.length) {
       setPreviewCycleKey("");
@@ -528,7 +609,7 @@ export function WizardShell() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Unable to save your workspace right now.");
+          throw new Error(payload?.error || "Unable to save your plan right now.");
       }
 
       const payload = await response.json().catch(() => ({}));
@@ -595,14 +676,14 @@ export function WizardShell() {
       } catch (error) {
         if (ignore) return;
 
-        const fallback = createEmptySession("New Workflow");
+        const fallback = createEmptySession("New Plan");
         sessionRef.current = fallback;
         setSession(fallback);
         setBatchId(null);
         setActiveClientId(null);
         setSaveStatus({
           state: "error",
-          message: error instanceof Error ? error.message : "Unable to load workspace"
+          message: error instanceof Error ? error.message : "Unable to load plan"
         });
       } finally {
         if (ignore) return;
@@ -715,7 +796,7 @@ export function WizardShell() {
     if (!activeClient || !sessionRef.current) return;
 
     const clientName = activeClient.data.addresseeName || activeClient.clientId;
-    const confirmed = window.confirm(`Delete ${clientName}? This removes the client from this workflow.`);
+    const confirmed = window.confirm(`Delete ${clientName}? This removes the client from this plan.`);
     if (!confirmed) return;
 
     updateSession((current) => {
@@ -732,8 +813,44 @@ export function WizardShell() {
     setPublishError(null);
   }, [activeClient, updateSession]);
 
+  const saveClientAsTemplate = useCallback(() => {
+    if (!activeClient) return;
+    const suggested =
+      (activeClient.data.entityName || activeClient.data.addresseeName || activeClient.clientId).trim() ||
+      "Client plan template";
+    const name = window.prompt("Template name", `${suggested} template`);
+    if (!name?.trim()) return;
+
+    const template: ClientPlanTemplate = {
+      id: createId(),
+      name: name.trim(),
+      updatedAt: new Date().toISOString(),
+      data: normalizeClientData(JSON.parse(JSON.stringify(activeClient.data)))
+    };
+
+    setTemplates((current) => [template, ...current.filter((item) => item.name !== template.name)]);
+    setSelectedTemplateId(template.id);
+  }, [activeClient]);
+
+  const applySelectedTemplate = useCallback(() => {
+    if (!activeClientId || !selectedTemplateId) return;
+    const selected = templates.find((entry) => entry.id === selectedTemplateId);
+    if (!selected) return;
+
+    updateSession((current) => {
+      const index = current.clients.findIndex((client) => client.clientId === activeClientId);
+      if (index === -1) return current;
+      const nextClients = [...current.clients];
+      nextClients[index] = {
+        ...nextClients[index],
+        data: normalizeClientData(JSON.parse(JSON.stringify(selected.data)))
+      };
+      return { ...current, clients: nextClients };
+    });
+  }, [activeClientId, selectedTemplateId, templates, updateSession]);
+
   const newBatch = useCallback(async () => {
-    setSaveStatus({ state: "saving", message: "Creating a new workflow..." });
+    setSaveStatus({ state: "saving", message: "Creating a new plan..." });
     setPublishError(null);
     setPortalUrl(null);
 
@@ -741,12 +858,12 @@ export function WizardShell() {
       const response = await fetch("/api/batches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: `Workflow ${new Date().toLocaleDateString()}` })
+        body: JSON.stringify({ name: `Plan ${new Date().toLocaleDateString()}` })
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Unable to create a new workflow.");
+        throw new Error(payload?.error || "Unable to create a new plan.");
       }
 
       const payload = await response.json();
@@ -757,12 +874,12 @@ export function WizardShell() {
       sessionRef.current = snapshot;
       setActiveClientId(snapshot.clients[0]?.clientId ?? null);
       setActiveStep("basic");
-      setSaveStatus({ state: "saved", message: "New workflow ready" });
+      setSaveStatus({ state: "saved", message: "New plan ready" });
       setLastSavedAt(new Date());
     } catch (error) {
       setSaveStatus({
         state: "error",
-        message: error instanceof Error ? error.message : "Unable to create workflow"
+        message: error instanceof Error ? error.message : "Unable to create plan"
       });
     }
   }, []);
@@ -1220,16 +1337,16 @@ export function WizardShell() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Client Plans</p>
-              <CardTitle className="text-2xl tracking-tight sm:text-3xl">Payment Planning Workspace</CardTitle>
+              <CardTitle className="text-2xl tracking-tight sm:text-3xl">Client Payment Planner</CardTitle>
               <CardDescription>
-                Build polished client payment plans and publish secure portals in one cohesive workspace.
+                Build client payment plans, preview communication, and send secure checklists from one workspace.
               </CardDescription>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="secondary" className="gap-2" onClick={newBatch}>
                 <PlusIcon className="h-4 w-4" aria-hidden />
-                New workflow
+                New plan
               </Button>
               <Button type="button" variant="outline" className="gap-2" onClick={triggerImport}>
                 <UploadIcon className="h-4 w-4" aria-hidden />
@@ -1252,12 +1369,12 @@ export function WizardShell() {
 
           <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
             <div className="grid gap-2">
-              <Label htmlFor="workflow-name">Workflow name</Label>
+              <Label htmlFor="workflow-name">Plan name</Label>
               <Input
                 id="workflow-name"
                 value={session.name}
                 onChange={(event) => onSessionNameChange(event.target.value)}
-                placeholder="2026 Estimated Payment Portfolio"
+                placeholder="2026 Estimated Payment Plan"
               />
             </div>
             <div className="flex items-center gap-2 pb-1">
@@ -1294,21 +1411,30 @@ export function WizardShell() {
         </CardHeader>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Clients" value={String(totals.clients)} />
-        <MetricCard label="Federal obligations" value={String(totals.federal)} />
-        <MetricCard label="State obligations" value={String(totals.state)} />
-        <MetricCard label="Upcoming deadlines" value={String(totals.upcoming)} />
-        <MetricCard label="Planned value" value={formatCurrency(totals.amount)} />
-      </div>
+      <Card className="bg-card/50 backdrop-blur">
+        <CardContent className="flex flex-wrap items-center gap-3 py-4">
+          <Badge variant="outline" className="px-3 py-1 text-xs">
+            {totals.clients} clients
+          </Badge>
+          <Badge variant="outline" className="px-3 py-1 text-xs">
+            {totals.payments} obligations
+          </Badge>
+          <Badge variant="outline" className="px-3 py-1 text-xs">
+            {totals.upcoming} upcoming deadlines
+          </Badge>
+          <Badge variant="secondary" className="ml-auto px-3 py-1 text-xs">
+            Planned value {formatCurrency(totals.amount)}
+          </Badge>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <Card className="h-fit bg-card/70 backdrop-blur">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base">Client portfolio</CardTitle>
+            <CardTitle className="text-base">Clients</CardTitle>
             <CardDescription>
-              Build each client plan in one place.{" "}
-              {totals.clients ? `${totals.clients} clients currently in scope.` : "Add your first client to begin."}
+              Manage client plans in one list.{" "}
+              {totals.clients ? `${totals.clients} clients in this plan.` : "Add your first client to begin."}
             </CardDescription>
           </CardHeader>
           <Separator />
@@ -1340,6 +1466,40 @@ export function WizardShell() {
                 <TrashIcon className="h-3.5 w-3.5" aria-hidden />
                 Delete
               </Button>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="grid gap-1">
+                <Label htmlFor="plan-template" className="text-xs text-muted-foreground">
+                  Reusable plan templates
+                </Label>
+                <Select
+                  id="plan-template"
+                  value={selectedTemplateId}
+                  onChange={(event) => setSelectedTemplateId(event.target.value)}
+                >
+                  {!templates.length ? <option value="">No templates yet</option> : null}
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" disabled={!activeClient} onClick={saveClientAsTemplate}>
+                  Save current as template
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={!activeClient || !selectedTemplateId}
+                  onClick={applySelectedTemplate}
+                >
+                  Apply template
+                </Button>
+              </div>
             </div>
 
             {session.clients.length ? (
@@ -1399,35 +1559,16 @@ export function WizardShell() {
         </Card>
 
         <div className="space-y-6">
-          {activeClient ? (
-            <Card className="bg-card/70 backdrop-blur">
-              <CardHeader className="pb-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                      Current Client
-                    </p>
-                    <CardTitle className="text-xl">
-                      {activeClient.data.addresseeName || "Unnamed client"}
-                    </CardTitle>
-                    <CardDescription>
-                      {activeClient.data.entityType === "business" ? "Business entity" : "Individual"} •{" "}
-                      {activeClient.data.federalPayments.length +
-                        activeClient.data.statePayments.reduce((sum, group) => sum + group.payments.length, 0)}{" "}
-                      planned payments
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline" className="font-mono text-[11px]">
-                    {activeClient.clientId}
-                  </Badge>
-                </div>
-              </CardHeader>
-            </Card>
-          ) : null}
-
           <Card className="overflow-hidden">
-            <CardHeader className="space-y-3">
-              <CardTitle className="text-base">Plan builder</CardTitle>
+            <CardHeader className="space-y-3 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Plan sections</CardTitle>
+                {activeClient ? (
+                  <p className="text-sm text-muted-foreground">
+                    {activeClient.data.addresseeName || "Unnamed client"} • {activeClient.clientId}
+                  </p>
+                ) : null}
+              </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {STEPS.map((step) => {
                   const isActive = activeStep === step.id;
@@ -1439,19 +1580,16 @@ export function WizardShell() {
                       type="button"
                       onClick={() => setActiveStep(step.id)}
                       className={cn(
-                        "rounded-xl border px-3 py-3 text-left transition-colors",
+                        "rounded-lg border px-3 py-2.5 text-left transition-colors",
                         isActive
                           ? "border-primary/35 bg-primary/10"
                           : "border-border bg-background hover:bg-muted/40"
                       )}
                     >
                       <p className="text-sm font-semibold">{step.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{step.hint}</p>
-                      <div className="mt-2">
-                        <Badge variant={isComplete ? "success" : "secondary"} className="text-[10px]">
-                          {isComplete ? "Complete" : "Pending"}
-                        </Badge>
-                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {isComplete ? "Ready" : "In progress"}
+                      </p>
                     </button>
                   );
                 })}
@@ -1462,7 +1600,7 @@ export function WizardShell() {
           {!activeClient ? (
             <Card>
               <CardContent className="py-16 text-center text-sm text-muted-foreground">
-                Choose a client from the portfolio, or add a new one to begin.
+                Choose a client from the list, or add a new one to begin.
               </CardContent>
             </Card>
           ) : null}
@@ -1499,26 +1637,6 @@ export function WizardShell() {
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="sender-name">Sender name</Label>
-                  <Input
-                    id="sender-name"
-                    value={activeClient.data.senderName}
-                    onChange={(event) => updateClientField("senderName", event.target.value)}
-                    placeholder="Kyle Milner"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="payment-due-date">Target pay-by date</Label>
-                  <Input
-                    id="payment-due-date"
-                    type="date"
-                    value={activeClient.data.paymentDueDate}
-                    onChange={(event) => updateClientField("paymentDueDate", event.target.value)}
-                  />
-                </div>
-
-                <div className="grid gap-2">
                   <Label htmlFor="entity-type">Entity type</Label>
                   <Select
                     id="entity-type"
@@ -1543,86 +1661,113 @@ export function WizardShell() {
                   </Select>
                 </div>
 
-                {activeClient.data.entityType === "business" ? (
-                  <>
+                <details className="md:col-span-2 rounded-xl border bg-background/70 p-4">
+                  <summary className="cursor-pointer list-none text-sm font-medium">
+                    Advanced settings
+                  </summary>
+                  <div className="mt-4 grid gap-5 md:grid-cols-2">
                     <div className="grid gap-2">
-                      <Label htmlFor="business-type">Business type</Label>
-                      <Select
-                        id="business-type"
-                        value={activeClient.data.businessType || "ccorp"}
-                        onChange={(event) => updateClientField("businessType", event.target.value)}
-                      >
-                        {BUSINESS_TYPES.map((type) => (
-                          <option key={type} value={type}>
-                            {type.toUpperCase()}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="entity-name">Business legal name</Label>
+                      <Label htmlFor="sender-name">Sender name</Label>
                       <Input
-                        id="entity-name"
-                        value={activeClient.data.entityName}
-                        onChange={(event) => updateClientField("entityName", event.target.value)}
-                        placeholder="Acme Tax Advisory LLC"
+                        id="sender-name"
+                        value={activeClient.data.senderName}
+                        onChange={(event) => updateClientField("senderName", event.target.value)}
+                        placeholder="Kyle Milner"
                       />
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="entity-id">Tax ID / entity ID</Label>
+                      <Label htmlFor="payment-due-date">Target pay-by date</Label>
                       <Input
-                        id="entity-id"
-                        value={activeClient.data.entityId}
-                        onChange={(event) => updateClientField("entityId", event.target.value)}
-                        placeholder="12-3456789"
+                        id="payment-due-date"
+                        type="date"
+                        value={activeClient.data.paymentDueDate}
+                        onChange={(event) => updateClientField("paymentDueDate", event.target.value)}
                       />
                     </div>
 
-                    <div className="grid gap-2">
-                      <Label htmlFor="ca-corp-form">CA corp form (if applicable)</Label>
-                      <Select
-                        id="ca-corp-form"
-                        value={activeClient.data.caCorpForm}
-                        onChange={(event) => updateClientField("caCorpForm", event.target.value)}
-                      >
-                        <option value="">Not applicable</option>
-                        {CA_CORP_FORMS.map((form) => (
-                          <option key={form} value={form}>
-                            Form {form}
-                          </option>
-                        ))}
-                      </Select>
+                    {activeClient.data.entityType === "business" ? (
+                      <>
+                        <div className="grid gap-2">
+                          <Label htmlFor="business-type">Business type</Label>
+                          <Select
+                            id="business-type"
+                            value={activeClient.data.businessType || "ccorp"}
+                            onChange={(event) => updateClientField("businessType", event.target.value)}
+                          >
+                            {BUSINESS_TYPES.map((type) => (
+                              <option key={type} value={type}>
+                                {type.toUpperCase()}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="entity-name">Business legal name</Label>
+                          <Input
+                            id="entity-name"
+                            value={activeClient.data.entityName}
+                            onChange={(event) => updateClientField("entityName", event.target.value)}
+                            placeholder="Acme Tax Advisory LLC"
+                          />
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="entity-id">Tax ID / entity ID</Label>
+                          <Input
+                            id="entity-id"
+                            value={activeClient.data.entityId}
+                            onChange={(event) => updateClientField("entityId", event.target.value)}
+                            placeholder="12-3456789"
+                          />
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="ca-corp-form">CA corp form (if applicable)</Label>
+                          <Select
+                            id="ca-corp-form"
+                            value={activeClient.data.caCorpForm}
+                            onChange={(event) => updateClientField("caCorpForm", event.target.value)}
+                          >
+                            <option value="">Not applicable</option>
+                            {CA_CORP_FORMS.map((form) => (
+                              <option key={form} value={form}>
+                                Form {form}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                      </>
+                    ) : null}
+
+                    <div className="flex items-center gap-3 rounded-xl border bg-background px-3 py-2">
+                      <input
+                        id="show-reminder"
+                        type="checkbox"
+                        checked={activeClient.data.showDueDateReminder}
+                        onChange={(event) => updateClientField("showDueDateReminder", event.target.checked)}
+                        className="h-4 w-4 rounded border-input accent-primary"
+                      />
+                      <Label htmlFor="show-reminder" className="text-sm font-normal text-muted-foreground">
+                        Include due date reminder in generated instructions
+                      </Label>
                     </div>
-                  </>
-                ) : null}
 
-                <div className="flex items-center gap-3 rounded-xl border bg-background px-3 py-2">
-                  <input
-                    id="show-reminder"
-                    type="checkbox"
-                    checked={activeClient.data.showDueDateReminder}
-                    onChange={(event) => updateClientField("showDueDateReminder", event.target.checked)}
-                    className="h-4 w-4 rounded border-input accent-primary"
-                  />
-                  <Label htmlFor="show-reminder" className="text-sm font-normal text-muted-foreground">
-                    Include due date reminder in generated instructions
-                  </Label>
-                </div>
-
-                <div className="flex items-center gap-3 rounded-xl border bg-background px-3 py-2">
-                  <input
-                    id="show-disclaimers"
-                    type="checkbox"
-                    checked={activeClient.data.showDisclaimers}
-                    onChange={(event) => updateClientField("showDisclaimers", event.target.checked)}
-                    className="h-4 w-4 rounded border-input accent-primary"
-                  />
-                  <Label htmlFor="show-disclaimers" className="text-sm font-normal text-muted-foreground">
-                    Include payment/disclaimer section
-                  </Label>
-                </div>
+                    <div className="flex items-center gap-3 rounded-xl border bg-background px-3 py-2">
+                      <input
+                        id="show-disclaimers"
+                        type="checkbox"
+                        checked={activeClient.data.showDisclaimers}
+                        onChange={(event) => updateClientField("showDisclaimers", event.target.checked)}
+                        className="h-4 w-4 rounded border-input accent-primary"
+                      />
+                      <Label htmlFor="show-disclaimers" className="text-sm font-normal text-muted-foreground">
+                        Include payment/disclaimer section
+                      </Label>
+                    </div>
+                  </div>
+                </details>
               </CardContent>
             </Card>
           ) : null}
@@ -2019,46 +2164,26 @@ export function WizardShell() {
           {activeClient && activeStep === "review" ? (
             <Card className="overflow-hidden">
               <CardHeader className="space-y-2">
-                <CardTitle className="text-xl">Publish plan</CardTitle>
+                <CardTitle className="text-xl">Review and send</CardTitle>
                 <CardDescription>
-                  Validate this client plan, then publish a secure portal link for confirmation.
+                  Confirm this client plan, review the message, then generate the secure checklist link.
                 </CardDescription>
               </CardHeader>
               <Separator />
               <CardContent className="space-y-6 pt-6">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <MetricCard
-                    label="Current client"
-                    value={activeClient.data.addresseeName || "Unnamed"}
-                    compact
-                  />
-                  <MetricCard
-                    label="Federal items"
-                    value={String(activeClient.data.federalPayments.length)}
-                    compact
-                  />
-                  <MetricCard
-                    label="State items"
-                    value={String(
-                      activeClient.data.statePayments.reduce((sum, group) => sum + group.payments.length, 0)
-                    )}
-                    compact
-                  />
-                  <MetricCard
-                    label="Total planned"
-                    value={formatCurrency(
-                      activeClient.data.federalPayments.reduce((sum, payment) => sum + safeNumber(payment.amount), 0) +
-                        activeClient.data.statePayments.reduce(
-                          (sum, group) =>
-                            sum + group.payments.reduce((paymentSum, payment) => paymentSum + safeNumber(payment.amount), 0),
-                          0
-                        )
-                    )}
-                    compact
-                  />
+                <div className="rounded-xl border bg-background/80 p-4">
+                  <p className="text-sm font-medium">Pre-send validation</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {reviewChecks.map((check) => (
+                      <div key={check.label} className="flex items-center gap-2 text-sm">
+                        <span className={cn("h-2.5 w-2.5 rounded-full", check.ok ? "bg-emerald-500" : "bg-rose-500")} />
+                        <span className={check.ok ? "text-foreground" : "text-muted-foreground"}>{check.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
                   <div className="rounded-2xl border bg-background/80 p-4">
                     <div>
                       <p className="text-sm font-medium">Email settings</p>
@@ -2102,7 +2227,7 @@ export function WizardShell() {
                     {previewError ? <p className="mt-3 text-sm text-destructive">{previewError}</p> : null}
                   </div>
 
-                  <div className="rounded-2xl border bg-card/80 p-4 xl:sticky xl:top-4">
+                  <div className="rounded-2xl border bg-card/80 p-4 lg:sticky lg:top-4">
                     <div className="rounded-xl border bg-card p-3">
                       <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Subject</p>
                       <p className="mt-1 text-sm font-medium">{previewEmail?.subject || "Email subject will appear here"}</p>
@@ -2138,9 +2263,9 @@ export function WizardShell() {
                 <div className="rounded-2xl border bg-background/80 p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm font-medium">Portal publishing</p>
+                      <p className="text-sm font-medium">Client checklist link</p>
                       <p className="text-sm text-muted-foreground">
-                        Save and generate a secure client portal URL.
+                        Save and generate the secure URL your client will use to confirm payments.
                       </p>
                     </div>
                     <Button
@@ -2150,7 +2275,7 @@ export function WizardShell() {
                       disabled={publishingChecklist}
                     >
                       <LinkIcon className="h-4 w-4" aria-hidden />
-                      {publishingChecklist ? "Publishing..." : "Generate portal link"}
+                      {publishingChecklist ? "Generating..." : "Generate checklist link"}
                     </Button>
                   </div>
 
@@ -2223,17 +2348,6 @@ export function WizardShell() {
         </div>
       </div>
     </div>
-  );
-}
-
-function MetricCard({ label, value, compact }: { label: string; value: string; compact?: boolean }) {
-  return (
-    <Card className={cn("bg-card/70 backdrop-blur", compact && "shadow-none")}> 
-      <CardHeader className={cn("pb-3", compact && "p-4 pb-2")}> 
-        <CardDescription className={cn(compact && "text-xs")}>{label}</CardDescription>
-        <CardTitle className={cn("text-2xl tabular-nums", compact && "text-lg")}>{value}</CardTitle>
-      </CardHeader>
-    </Card>
   );
 }
 
