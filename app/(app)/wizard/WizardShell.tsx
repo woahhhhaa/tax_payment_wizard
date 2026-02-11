@@ -290,6 +290,25 @@ function safeDate(value: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parseQuarterValue(value: unknown) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  if (!raw) return null;
+  const normalized = raw.replace(/[^Q0-9]/g, "");
+  const qMatch = normalized.match(/Q([1-4])/);
+  if (qMatch) return Number(qMatch[1]);
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric) || numeric < 1 || numeric > 4) return null;
+  return numeric;
+}
+
+function parseTaxYearValue(value: unknown) {
+  const normalized = String(value ?? "").replace(/[^0-9]/g, "");
+  if (!normalized) return null;
+  const year = Number(normalized);
+  if (!Number.isFinite(year) || year < 1900 || year > 2200) return null;
+  return year;
+}
+
 function csvCell(value: unknown) {
   const stringValue = String(value ?? "");
   const escaped = stringValue.replace(/"/g, '""');
@@ -322,6 +341,17 @@ export function WizardShell() {
   const [publishingChecklist, setPublishingChecklist] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewCycleKey, setPreviewCycleKey] = useState("");
+  const [previewEmail, setPreviewEmail] = useState<{
+    subject: string;
+    html: string;
+    text: string;
+    paymentCount: number;
+    quarter: number;
+    taxYear: number;
+  } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [newStateCode, setNewStateCode] = useState("CA");
 
@@ -329,6 +359,7 @@ export function WizardShell() {
   const sessionRef = useRef<WizardSession | null>(null);
   const batchIdRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef(false);
   const readyRef = useRef(false);
   const savingRef = useRef(false);
@@ -400,6 +431,52 @@ export function WizardShell() {
     };
   }, [allPayments, session]);
 
+  const previewCycles = useMemo(() => {
+    if (!activeClient) return [];
+
+    const counts = new Map<
+      string,
+      {
+        key: string;
+        quarter: number;
+        taxYear: number;
+        paymentCount: number;
+        label: string;
+      }
+    >();
+
+    const collect = (payment: WizardPayment) => {
+      const quarter = parseQuarterValue(payment.quarter);
+      const taxYear = parseTaxYearValue(payment.taxPeriod);
+      if (!quarter || !taxYear) return;
+
+      const key = `${taxYear}-Q${quarter}`;
+      const existing = counts.get(key);
+      if (existing) {
+        existing.paymentCount += 1;
+        return;
+      }
+
+      counts.set(key, {
+        key,
+        quarter,
+        taxYear,
+        paymentCount: 1,
+        label: `Q${quarter} ${taxYear}`
+      });
+    };
+
+    activeClient.data.federalPayments.forEach(collect);
+    activeClient.data.statePayments.forEach((group) => {
+      group.payments.forEach(collect);
+    });
+
+    return Array.from(counts.values()).sort((a, b) => {
+      if (a.taxYear !== b.taxYear) return b.taxYear - a.taxYear;
+      return a.quarter - b.quarter;
+    });
+  }, [activeClient]);
+
   const completion = useMemo(() => {
     const data = activeClient?.data;
     const basicComplete = Boolean(data?.addresseeName?.trim());
@@ -414,6 +491,22 @@ export function WizardShell() {
       review: reviewReady
     };
   }, [activeClient]);
+
+  useEffect(() => {
+    if (!previewCycles.length) {
+      setPreviewCycleKey("");
+      return;
+    }
+
+    setPreviewCycleKey((current) =>
+      previewCycles.some((entry) => entry.key === current) ? current : previewCycles[0].key
+    );
+  }, [previewCycles]);
+
+  useEffect(() => {
+    setPreviewEmail(null);
+    setPreviewError(null);
+  }, [activeClientId]);
 
   const persistSession = useCallback(async () => {
     const snapshot = sessionRef.current;
@@ -525,6 +618,10 @@ export function WizardShell() {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
+      }
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
       }
     };
   }, [persistSession]);
@@ -1033,6 +1130,76 @@ export function WizardShell() {
       setPublishError("Checklist URL copied failed. You can copy it from the field.");
     }
   }, [portalUrl]);
+
+  const loadEmailPreview = useCallback(async (options?: { silent?: boolean }) => {
+    if (!activeClient) return;
+
+    const cycle = previewCycles.find((entry) => entry.key === previewCycleKey);
+    if (!cycle) {
+      if (!options?.silent) {
+        setPreviewError("Select a quarter and tax year with planned payments first.");
+      }
+      return;
+    }
+
+    setPreviewLoading(true);
+    if (!options?.silent) {
+      setPreviewError(null);
+    }
+
+    try {
+      const response = await fetch("/api/plans/email-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quarter: cycle.quarter,
+          taxYear: cycle.taxYear,
+          clientData: activeClient.data,
+          addresseeName: activeClient.data.addresseeName,
+          clientName: activeClient.data.entityName || activeClient.data.addresseeName || activeClient.clientId
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Unable to generate email preview.");
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      setPreviewEmail({
+        subject: String(payload?.subject || ""),
+        html: String(payload?.html || ""),
+        text: String(payload?.text || ""),
+        paymentCount: Number(payload?.paymentCount || 0),
+        quarter: Number(payload?.quarter || cycle.quarter),
+        taxYear: Number(payload?.taxYear || cycle.taxYear)
+      });
+    } catch (error) {
+      if (!options?.silent) {
+        setPreviewEmail(null);
+        setPreviewError(error instanceof Error ? error.message : "Unable to generate email preview.");
+      }
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [activeClient, previewCycleKey, previewCycles]);
+
+  useEffect(() => {
+    if (activeStep !== "review") return;
+    if (!activeClient || !previewCycleKey) return;
+
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = setTimeout(() => {
+      void loadEmailPreview({ silent: true });
+    }, 450);
+
+    return () => {
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+    };
+  }, [activeStep, activeClient, previewCycleKey, loadEmailPreview]);
 
   if (loading || !session) {
     return (
@@ -1889,6 +2056,83 @@ export function WizardShell() {
                     )}
                     compact
                   />
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+                  <div className="rounded-2xl border bg-background/80 p-4">
+                    <div>
+                      <p className="text-sm font-medium">Email settings</p>
+                      <p className="text-sm text-muted-foreground">
+                        The preview updates automatically as you edit this client.
+                      </p>
+                    </div>
+
+                    <div className="mt-4 grid gap-2">
+                      <Label htmlFor="email-cycle" className="text-xs text-muted-foreground">
+                        Payment cycle
+                      </Label>
+                      <Select
+                        id="email-cycle"
+                        value={previewCycleKey}
+                        onChange={(event) => {
+                          setPreviewCycleKey(event.target.value);
+                          setPreviewEmail(null);
+                          setPreviewError(null);
+                        }}
+                      >
+                        {!previewCycles.length ? <option value="">No cycles available</option> : null}
+                        {previewCycles.map((entry) => (
+                          <option key={entry.key} value={entry.key}>
+                            {entry.label} ({entry.paymentCount})
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void loadEmailPreview()}
+                      disabled={previewLoading || !previewCycles.length}
+                      className="mt-3 w-full"
+                    >
+                      {previewLoading ? "Refreshing preview..." : "Refresh now"}
+                    </Button>
+
+                    {previewError ? <p className="mt-3 text-sm text-destructive">{previewError}</p> : null}
+                  </div>
+
+                  <div className="rounded-2xl border bg-card/80 p-4 xl:sticky xl:top-4">
+                    <div className="rounded-xl border bg-card p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Subject</p>
+                      <p className="mt-1 text-sm font-medium">{previewEmail?.subject || "Email subject will appear here"}</p>
+                      {previewEmail ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Q{previewEmail.quarter} {previewEmail.taxYear} • {previewEmail.paymentCount} payment
+                          {previewEmail.paymentCount === 1 ? "" : "s"}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 overflow-hidden rounded-xl border bg-white">
+                      <div className="border-b bg-muted/20 px-3 py-2 text-xs font-medium text-muted-foreground">
+                        Email body
+                      </div>
+                      <div className="max-h-[560px] overflow-auto p-4 text-sm text-foreground">
+                        {previewEmail ? (
+                          <div dangerouslySetInnerHTML={{ __html: previewEmail.html }} />
+                        ) : previewCycles.length ? (
+                          <p className="text-muted-foreground">
+                            Make edits to this client plan and your draft email preview will update automatically.
+                          </p>
+                        ) : (
+                          <p className="text-muted-foreground">
+                            Add payments with quarter and tax year values to generate the email preview.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl border bg-background/80 p-4">
