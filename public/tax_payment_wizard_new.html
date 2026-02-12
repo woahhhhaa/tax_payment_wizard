@@ -5138,8 +5138,7 @@ function buildEmlContent({ subject, from, to, htmlBody }) {
     'To: ' + (safeTo || ''),
     'MIME-Version: 1.0',
     'Content-Type: multipart/alternative; boundary="' + boundary + '"',
-    'X-Unsent: 1',
-    ''
+    'X-Unsent: 1'
   ].join('\r\n');
 
   const bodyParts = [
@@ -5160,7 +5159,7 @@ function buildEmlContent({ subject, from, to, htmlBody }) {
     '--' + boundary + '--'
   ];
 
-  return headers + bodyParts.join('\r\n');
+  return headers + '\r\n\r\n' + bodyParts.join('\r\n');
 }
 
 function triggerEmlDownload(filename, emlContent) {
